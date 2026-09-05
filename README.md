@@ -102,3 +102,21 @@ Deployment-time artifacts are resolved by Quarkus itself into the regular local 
   Quarkus version the application depends on. The plugin prints a warning when the two differ.
 * With `containerBuild: true` (the default) on macOS or Windows, the native executable is a Linux binary. Run it
   in a container or on a Linux host.
+
+### A native binary for the host platform
+
+Set `containerBuild: false` and point Quarkus at a local GraalVM or Mandrel:
+
+```yaml
+plugins:
+  quarkus:
+    enabled: true
+    containerBuild: false
+```
+
+```shell
+GRAALVM_HOME=$(sdk home java 25.0.2.r25-mandrel) ./kotlin do quarkusNative -m app
+```
+
+Use a distribution whose JDK version matches `settings.jvm.release` of the module, which defaults to the
+toolchain JDK. Verified on macOS aarch64 with Mandrel `25.0.2.r25`: `app-runner` is a Mach-O arm64 executable.
