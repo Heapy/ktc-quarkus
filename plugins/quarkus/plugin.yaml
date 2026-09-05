@@ -19,6 +19,17 @@ tasks:
       settings: ${pluginSettings}
       nativeImage: true
 
+  quarkusRun:
+    action: !io.heapy.ktc.quarkus.quarkusRun
+      appJar: ${module.jar}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      packagedApplication: ${tasks.quarkusBuild.action.outputDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+
 commands:
   - quarkusBuild
   - quarkusNative
+  - quarkusRun

@@ -47,6 +47,7 @@ Build it:
 ```shell
 ./kotlin do quarkusBuild -m app     # JVM fast-jar
 ./kotlin do quarkusNative -m app    # native executable
+./kotlin do quarkusRun -m app       # build, then run the packaged application
 ```
 
 Output goes to `build/tasks/_app_quarkusBuild@quarkus/`:
@@ -63,6 +64,18 @@ Output goes to `build/tasks/_app_quarkusBuild@quarkus/`:
 | `platformBom`     | derived             | `groupId:artifactId:version` of the platform BOM used for the deployment graph. Defaults to `io.quarkus:quarkus-bom` at the Quarkus version found on the runtime classpath |
 | `buildProperties` | empty               | Extra build-time Quarkus configuration                                  |
 | `containerBuild`  | `true`              | Run `native-image` inside the Mandrel builder container                 |
+| `run`             | see below           | Options for `quarkusRun`                                                |
+
+### `run`
+
+| Setting            | Default | Meaning                                                                                  |
+|--------------------|---------|------------------------------------------------------------------------------------------|
+| `jvmArgs`          | empty   | JVM options, inserted right after the executable                                          |
+| `systemProperties` | empty   | Passed to the process as `-Dkey=value`                                                    |
+| `environment`      | empty   | Added to the environment of the process                                                   |
+| `arguments`        | empty   | Program arguments. When empty, the `QUARKUS_RUN_ARGS` environment variable is split on spaces |
+| `workingDirectory` | module root | Working directory, relative to the module root. An extension that names its own directory wins |
+| `target`           | derived | Which run command to use when several extensions provide one. Falls back to the `quarkus.run.target` system property |
 
 ```yaml
 plugins:
@@ -83,6 +96,11 @@ plugins:
    `BootstrapAppModelResolver`. No `pom.xml` is generated and no Maven or Gradle process is started.
 4. Runs `QuarkusBootstrap` in `PROD` mode and calls `createProductionApplication()`. For `quarkusNative` it sets
    `quarkus.native.enabled` and `quarkus.native.container-build`.
+
+`quarkusRun` runs `QuarkusBootstrap` in `RUN` mode instead and asks the extensions for a launch command through
+`StartDevServicesAndRunCommandHandler`. Dev Services start as part of that build, and their configuration is
+injected into the launch command. The task reads the packaged application produced by `quarkusBuild`, so the
+toolchain runs `quarkusBuild` first. `Ctrl-C` stops the launched process.
 
 Deployment-time artifacts are resolved by Quarkus itself into the regular local Maven repository
 (`~/.m2/repository`).
