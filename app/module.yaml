@@ -1,0 +1,9 @@
+product: jvm/app
+
+dependencies:
+  - bom: io.quarkus.platform:quarkus-bom:3.39.2
+  - io.quarkus:quarkus-rest
+  - io.quarkus:quarkus-kotlin
+
+plugins:
+  quarkus: enabled

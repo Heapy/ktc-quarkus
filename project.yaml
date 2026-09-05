@@ -1,0 +1,6 @@
+modules:
+  - app
+  - plugins/quarkus
+
+plugins:
+  - //plugins/quarkus

@@ -1,0 +1,9 @@
+product: jvm/amper-plugin
+
+pluginInfo:
+  id: quarkus
+  settingsClass: io.heapy.ktc.quarkus.QuarkusSettings
+
+dependencies:
+  - io.quarkus:quarkus-bootstrap-core:3.39.2
+  - io.quarkus:quarkus-bootstrap-maven-resolver:3.39.2

@@ -1,0 +1,24 @@
+tasks:
+  quarkusBuild:
+    action: !io.heapy.ktc.quarkus.quarkusBuild
+      appJar: ${module.jar}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+      nativeImage: false
+
+  quarkusNative:
+    action: !io.heapy.ktc.quarkus.quarkusBuild
+      appJar: ${module.jar}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+      nativeImage: true
+
+commands:
+  - quarkusBuild
+  - quarkusNative
