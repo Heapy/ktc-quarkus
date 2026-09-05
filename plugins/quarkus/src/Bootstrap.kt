@@ -6,12 +6,14 @@ import io.quarkus.bootstrap.resolver.BootstrapAppModelResolver
 import io.quarkus.bootstrap.resolver.maven.BootstrapMavenContext
 import io.quarkus.bootstrap.resolver.maven.MavenArtifactResolver
 import io.quarkus.bootstrap.workspace.ArtifactSources
+import io.quarkus.bootstrap.workspace.DefaultArtifactSources
 import io.quarkus.bootstrap.workspace.DefaultWorkspaceModule
 import io.quarkus.bootstrap.workspace.SourceDir
 import io.quarkus.bootstrap.workspace.WorkspaceModuleId
 import io.quarkus.maven.dependency.ArtifactCoords
 import io.quarkus.maven.dependency.ArtifactDependency
 import io.quarkus.maven.dependency.Dependency
+import io.quarkus.paths.PathList
 import org.jetbrains.amper.plugins.Classpath
 import org.jetbrains.amper.plugins.CompilationArtifact
 import java.nio.file.Files
@@ -34,7 +36,9 @@ internal fun bootstrapQuarkus(
     val applicationRoot = outputDir.resolve("app-classes")
     unpackJar(appJar.artifact, applicationRoot)
 
-    val dependencies = readDependencies(runtimeClasspath, appJar.artifact)
+    val classpath = readClasspath(runtimeClasspath, appJar.artifact)
+    val applicationSources = applicationSources(moduleDir, applicationRoot, outputDir, classpath.localModules)
+    val dependencies = classpath.mavenArtifacts
     val quarkusVersion = dependencies
         .firstOrNull { it.groupId == "io.quarkus" && it.artifactId == "quarkus-core" }
         ?.version
@@ -50,9 +54,10 @@ internal fun bootstrapQuarkus(
         .setModuleDir(moduleDir)
         .setBuildDir(outputDir)
         .addArtifactSources(
-            ArtifactSources.main(
-                SourceDir.of(moduleDir.resolve("src"), applicationRoot),
-                SourceDir.of(moduleDir.resolve("resources"), applicationRoot),
+            DefaultArtifactSources(
+                ArtifactSources.MAIN,
+                applicationSources,
+                listOf(SourceDir.of(moduleDir.resolve("resources"), applicationRoot)),
             )
         )
         .addDependencyConstraint(platformBom(settings.platformBom, quarkusVersion))
@@ -70,7 +75,7 @@ internal fun bootstrapQuarkus(
 
     return QuarkusBootstrap.builder()
         .setExistingModel(applicationModel)
-        .setApplicationRoot(applicationRoot)
+        .setApplicationRoot(PathList.from(applicationSources.map { it.outputDir }))
         .setProjectRoot(moduleDir)
         .setTargetDirectory(targetDirectory)
         .setBaseName(moduleName)
@@ -143,24 +148,59 @@ private fun toDependency(coords: JarCoords): Dependency =
         coords.version,
     )
 
-private fun readDependencies(classpath: Classpath, appJar: Path): List<JarCoords> {
+/**
+ * A local module is part of the application, not a resolved artifact, so its classes are unpacked next to the
+ * module's own classes and registered as another source directory of the application.
+ */
+private fun applicationSources(
+    moduleDir: Path,
+    applicationRoot: Path,
+    outputDir: Path,
+    localModules: Map<String, Path>,
+): List<SourceDir> {
+    val sources = mutableListOf(SourceDir.of(moduleDir.resolve("src"), applicationRoot))
+    for ((name, jar) in localModules) {
+        val root = outputDir.resolve("local").resolve(name)
+        unpackJar(jar, root)
+        sources.add(SourceDir.of(moduleDir.resolveSibling(name).resolve("src"), root))
+    }
+    return sources
+}
+
+private class ClasspathEntries(
+    val mavenArtifacts: List<JarCoords>,
+    val localModules: Map<String, Path>,
+)
+
+private fun readClasspath(classpath: Classpath, appJar: Path): ClasspathEntries {
     val ownJar = appJar.toAbsolutePath().normalize()
     val coords = mutableListOf<JarCoords>()
+    val localModules = linkedMapOf<String, Path>()
     val unmapped = mutableListOf<Path>()
     for (file in classpath.resolvedFiles) {
         if (file.toAbsolutePath().normalize() == ownJar) continue
-        val entry = readMavenCoords(file)
-        if (entry == null) {
-            unmapped.add(file)
-        } else {
-            coords.add(entry)
+        val coordinates = readMavenCoords(file)
+        val localModule = localModuleName(file)
+        when {
+            coordinates != null -> coords.add(coordinates)
+            localModule != null -> localModules[localModule] = file
+            else -> unmapped.add(file)
         }
     }
     if (unmapped.isNotEmpty()) {
-        System.err.println("Quarkus plugin: skipping classpath entries that are not Maven artifacts:")
+        System.err.println("Quarkus plugin: skipping classpath entries that are neither Maven artifacts nor modules:")
         unmapped.forEach { System.err.println("  $it") }
     }
-    return coords
+    return ClasspathEntries(coords, localModules)
+}
+
+private val LOCAL_MODULE_DIR = Regex("^_(.+)_jarJvm$")
+
+/** Matches the directory the Kotlin Toolchain writes a module JAR into. That layout is not a public contract. */
+private fun localModuleName(jar: Path): String? {
+    val directory = jar.parent?.fileName?.toString() ?: return null
+    val name = LOCAL_MODULE_DIR.matchEntire(directory)?.groupValues?.get(1) ?: return null
+    return name.takeIf { jar.fileName?.toString() == "$it-jvm.jar" }
 }
 
 private fun unpackJar(jar: Path, target: Path) {

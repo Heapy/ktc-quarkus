@@ -12,6 +12,7 @@ executable.
 ```
 project.yaml              # registers the plugin and the modules
 app/                      # sample Quarkus application (Kotlin, REST endpoint)
+lib/                      # local module the application depends on
 plugins/quarkus/          # the build plugin
 ```
 
@@ -92,9 +93,12 @@ plugins:
    the Quarkus application root.
 2. Reads `${module.runtimeClasspath}` and recovers Maven coordinates for every JAR from its position in the
    Maven repository layout plus the group ID in the sibling POM.
-3. Builds a Quarkus `WorkspaceModule` from that and resolves an `ApplicationModel` with
+3. Unpacks every local module JAR into its own directory and adds it as another root of the application, so beans
+   declared in a module the application depends on are discovered and its classes are packaged with the
+   application. Maven dependencies of those modules are already on the flattened runtime classpath.
+4. Builds a Quarkus `WorkspaceModule` from that and resolves an `ApplicationModel` with
    `BootstrapAppModelResolver`. No `pom.xml` is generated and no Maven or Gradle process is started.
-4. Runs `QuarkusBootstrap` in `PROD` mode and calls `createProductionApplication()`. For `quarkusNative` it sets
+5. Runs `QuarkusBootstrap` in `PROD` mode and calls `createProductionApplication()`. For `quarkusNative` it sets
    `quarkus.native.enabled` and `quarkus.native.container-build`.
 
 `quarkusRun` runs `QuarkusBootstrap` in `RUN` mode instead and asks the extensions for a launch command through
@@ -107,8 +111,7 @@ Deployment-time artifacts are resolved by Quarkus itself into the regular local 
 
 ## Limitations
 
-* Only classpath entries that live in a Maven repository layout are passed to Quarkus. A dependency on another
-  local Kotlin Toolchain module is reported and skipped.
+* A classpath entry that is neither a Maven artifact nor a module JAR is reported and skipped.
 * Native builds need Docker or Podman, unless `containerBuild` is set to `false` and a local GraalVM is on
   `PATH`.
 * The toolchain ignores Maven dependency exclusions, so the plugin classpath mixes maven-resolver 2.x with a

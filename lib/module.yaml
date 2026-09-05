@@ -1,0 +1,5 @@
+product: jvm/lib
+
+dependencies:
+  - bom: io.quarkus.platform:quarkus-bom:3.39.2
+  - io.quarkus:quarkus-arc

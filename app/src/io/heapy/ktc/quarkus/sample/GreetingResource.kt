@@ -1,13 +1,16 @@
 package io.heapy.ktc.quarkus.sample
 
+import io.heapy.ktc.quarkus.sample.greeting.Greeter
 import jakarta.ws.rs.GET
 import jakarta.ws.rs.Path
 import jakarta.ws.rs.Produces
 import jakarta.ws.rs.core.MediaType
 
 @Path("/hello")
-open class GreetingResource {
+open class GreetingResource(
+    private val greeter: Greeter,
+) {
     @GET
     @Produces(MediaType.TEXT_PLAIN)
-    fun hello(): String = "Hello from Quarkus on the Kotlin Toolchain"
+    fun hello(): String = greeter.greet()
 }

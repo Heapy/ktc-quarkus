@@ -21,11 +21,11 @@ Status values used below:
 | Package the application (JVM) | `build` | `quarkusBuild` | done | `AugmentAction.createProductionApplication()` |
 | Native executable | `build` + `quarkus.native.enabled` | `buildNative` | done | same, `quarkus.native.*` build properties |
 | Effective build configuration | `track-config-changes` | `quarkusShowEffectiveConfig` | **todo** | `EffectiveConfig`, `SmallRyeConfig` |
-| Run the packaged application | `run` | `quarkusRun` | **todo** | `AugmentAction.performCustomBuild(StartDevServicesAndRunCommandHandler)` |
+| Run the packaged application | `run` | `quarkusRun` | done | `AugmentAction.performCustomBuild(StartDevServicesAndRunCommandHandler)` |
 | Container image build | `image-build` | `imageBuild` | **todo** | forces `quarkus.container-image.build` |
 | Container image push | `image-push` | `imagePush` | **todo** | forces `quarkus.container-image.push` |
 | Deploy (k8s / openshift / minikube / kind / knative) | `deploy` | `deploy` | **todo** | `DeployCommandDeclarationHandler`, `DeployCommandHandler` |
-| Local module dependencies in the app model | `QuarkusMavenWorkspaceBuilder` | `ApplicationDeploymentClasspathBuilder` | **todo** | `WorkspaceModule`, `ArtifactSources` |
+| Local module dependencies in the app model | `QuarkusMavenWorkspaceBuilder` | `ApplicationDeploymentClasspathBuilder` | done | `WorkspaceModule`, `ArtifactSources` |
 | Incremental up-to-date check on configuration | `track-config-changes` | `quarkusShowEffectiveConfig` | **todo** | config dump file compared between builds |
 | Code generation, main sources | `generate-code` | `quarkusGenerateCode` | **blocked** | `CodeGenerator.initAndRun(...)` |
 | Code generation, dev sources | `generate-code` (`launchMode=DEVELOPMENT`) | `quarkusGenerateCodeDev` | blocked | same |
@@ -165,10 +165,18 @@ Do.
   module's sources and classes.
 * Attach them with `ArtifactDependency` flags `DIRECT | RUNTIME_CP | DEPLOYMENT_CP | WORKSPACE_MODULE | RELOADABLE`.
 
-Risks. Nothing in the KTC reference table gives a plugin the paths of *another* module, so this needs `project.yaml`
-parsing plus a second path heuristic for `build/artifacts/CompiledJvmArtifact/<module>jvm/`. Neither path layout is a
-public KTC contract. A `module.localDependencies` reference in `plugin.yaml` would be the clean fix — worth a KTC
-feature request.
+Done, with a cheaper design than the one sketched above. A classpath entry whose parent directory matches
+`_<name>_jarJvm` and whose file name is `<name>-jvm.jar` is a local module. Its JAR is unpacked into
+`${taskOutputDir}/local/<name>` and registered as another `SourceDir` of the application's own `WorkspaceModule`,
+and every unpacked root is passed to `QuarkusBootstrap.setApplicationRoot(PathList)`. No `project.yaml` parsing and
+no Maven workspace reader.
+
+Trade-off taken: local modules become part of the application archive rather than separate reloadable archives.
+Dev mode (§3.8) will therefore not hot-reload them separately, and that is the point at which the workspace-reader
+design becomes worth its cost.
+
+The `_<name>_jarJvm` layout is not a public KTC contract. A `module.localDependencies` reference in `plugin.yaml`
+would remove the heuristic — worth a KTC feature request.
 
 ### 3.6 Dependency-model fidelity
 
