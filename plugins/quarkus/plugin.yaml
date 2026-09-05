@@ -1,7 +1,8 @@
 tasks:
   quarkusBuild:
     action: !io.heapy.ktc.quarkus.quarkusBuild
-      appJar: ${module.jar}
+      classes: ${module.classes}
+      resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
       moduleDir: ${module.rootDir}
       outputDir: ${taskOutputDir}
@@ -11,7 +12,8 @@ tasks:
 
   quarkusNative:
     action: !io.heapy.ktc.quarkus.quarkusBuild
-      appJar: ${module.jar}
+      classes: ${module.classes}
+      resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
       moduleDir: ${module.rootDir}
       outputDir: ${taskOutputDir}
@@ -21,7 +23,8 @@ tasks:
 
   quarkusRun:
     action: !io.heapy.ktc.quarkus.quarkusRun
-      appJar: ${module.jar}
+      classes: ${module.classes}
+      resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
       moduleDir: ${module.rootDir}
       packagedApplication: ${tasks.quarkusBuild.action.outputDir}

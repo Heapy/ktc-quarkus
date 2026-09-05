@@ -16,6 +16,7 @@ import io.quarkus.maven.dependency.Dependency
 import io.quarkus.paths.PathList
 import org.jetbrains.amper.plugins.Classpath
 import org.jetbrains.amper.plugins.CompilationArtifact
+import org.jetbrains.amper.plugins.ModuleSources
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -23,7 +24,8 @@ import java.util.Properties
 import java.util.zip.ZipFile
 
 internal fun bootstrapQuarkus(
-    appJar: CompilationArtifact,
+    classes: CompilationArtifact,
+    resources: ModuleSources,
     runtimeClasspath: Classpath,
     moduleDir: Path,
     outputDir: Path,
@@ -33,11 +35,9 @@ internal fun bootstrapQuarkus(
     targetDirectory: Path = outputDir,
     extraBuildProperties: Map<String, String> = emptyMap(),
 ): CuratedApplication {
-    val applicationRoot = outputDir.resolve("app-classes")
-    unpackJar(appJar.artifact, applicationRoot)
-
-    val classpath = readClasspath(runtimeClasspath, appJar.artifact)
-    val applicationSources = applicationSources(moduleDir, applicationRoot, outputDir, classpath.localModules)
+    val classpath = readClasspath(runtimeClasspath, moduleName)
+    val applicationSources = applicationSources(moduleDir, classes.artifact, outputDir, classpath.localModules)
+    val resourceSources = resources.sourceDirectories.map { SourceDir.of(it, it) }
     val dependencies = classpath.mavenArtifacts
     val quarkusVersion = dependencies
         .firstOrNull { it.groupId == "io.quarkus" && it.artifactId == "quarkus-core" }
@@ -57,7 +57,7 @@ internal fun bootstrapQuarkus(
             DefaultArtifactSources(
                 ArtifactSources.MAIN,
                 applicationSources,
-                listOf(SourceDir.of(moduleDir.resolve("resources"), applicationRoot)),
+                resourceSources,
             )
         )
         .addDependencyConstraint(platformBom(settings.platformBom, quarkusVersion))
@@ -75,7 +75,7 @@ internal fun bootstrapQuarkus(
 
     return QuarkusBootstrap.builder()
         .setExistingModel(applicationModel)
-        .setApplicationRoot(PathList.from(applicationSources.map { it.outputDir }))
+        .setApplicationRoot(PathList.from((applicationSources + resourceSources).map { it.outputDir }))
         .setProjectRoot(moduleDir)
         .setTargetDirectory(targetDirectory)
         .setBaseName(moduleName)
@@ -154,11 +154,11 @@ private fun toDependency(coords: JarCoords): Dependency =
  */
 private fun applicationSources(
     moduleDir: Path,
-    applicationRoot: Path,
+    classesDir: Path,
     outputDir: Path,
     localModules: Map<String, Path>,
 ): List<SourceDir> {
-    val sources = mutableListOf(SourceDir.of(moduleDir.resolve("src"), applicationRoot))
+    val sources = mutableListOf(SourceDir.of(moduleDir.resolve("src"), classesDir))
     for ((name, jar) in localModules) {
         val root = outputDir.resolve("local").resolve(name)
         unpackJar(jar, root)
@@ -172,17 +172,16 @@ private class ClasspathEntries(
     val localModules: Map<String, Path>,
 )
 
-private fun readClasspath(classpath: Classpath, appJar: Path): ClasspathEntries {
-    val ownJar = appJar.toAbsolutePath().normalize()
+private fun readClasspath(classpath: Classpath, moduleName: String): ClasspathEntries {
     val coords = mutableListOf<JarCoords>()
     val localModules = linkedMapOf<String, Path>()
     val unmapped = mutableListOf<Path>()
     for (file in classpath.resolvedFiles) {
-        if (file.toAbsolutePath().normalize() == ownJar) continue
         val coordinates = readMavenCoords(file)
         val localModule = localModuleName(file)
         when {
             coordinates != null -> coords.add(coordinates)
+            localModule == moduleName -> Unit
             localModule != null -> localModules[localModule] = file
             else -> unmapped.add(file)
         }

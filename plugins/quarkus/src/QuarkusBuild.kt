@@ -4,13 +4,15 @@ import io.quarkus.bootstrap.app.QuarkusBootstrap
 import org.jetbrains.amper.plugins.Classpath
 import org.jetbrains.amper.plugins.CompilationArtifact
 import org.jetbrains.amper.plugins.Input
+import org.jetbrains.amper.plugins.ModuleSources
 import org.jetbrains.amper.plugins.Output
 import org.jetbrains.amper.plugins.TaskAction
 import java.nio.file.Path
 
 @TaskAction
 fun quarkusBuild(
-    @Input appJar: CompilationArtifact,
+    @Input classes: CompilationArtifact,
+    @Input resources: ModuleSources,
     @Input runtimeClasspath: Classpath,
     @Input moduleDir: Path,
     @Output outputDir: Path,
@@ -28,7 +30,8 @@ fun quarkusBuild(
     }
 
     bootstrapQuarkus(
-        appJar = appJar,
+        classes = classes,
+        resources = resources,
         runtimeClasspath = runtimeClasspath,
         moduleDir = moduleDir,
         outputDir = outputDir,

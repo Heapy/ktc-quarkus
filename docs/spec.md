@@ -106,11 +106,12 @@ build/artifacts/CompiledJvmArtifact/<module>jvm/resources-output    # processed 
 build/artifacts/CompiledJvmArtifact/<module>jvmTest/kotlin-output   # test classes
 ```
 
-Do. Switch the application root to `${module.classes}`, keeping `SourceDir` entries for `src` and `resources`.
-Verify first which of the two directories `module.classes` resolves to; classes and resources are separate on disk,
-and there is a `mergedClassesJvm` task, so a second `${module.resources}` entry may be required.
+Done. `${module.classes}` resolves to `kotlin-output`, which holds classes only, so the resource directories come
+from `${module.resources}` and are registered as their own `SourceDir` entries with the source directory used as
+its own output. Every root goes into `QuarkusBootstrap.setApplicationRoot(PathList)`.
 
-Gain: no unpack on every build, and dev mode (§3.8) needs the classes directory anyway.
+The module JAR is no longer read, but `${module.runtimeClasspath}` still builds it, because it resolves
+`${module.self}` in `jars` mode. Setting `settings.jvm.runtimeClasspathMode: classes` would drop that step.
 
 ### 3.3 `quarkusRun`
 

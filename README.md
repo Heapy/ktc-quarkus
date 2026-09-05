@@ -89,8 +89,8 @@ plugins:
 
 ## How it works
 
-1. Reads the module JAR (`${module.jar}`) and unpacks it into the task output directory. That directory becomes
-   the Quarkus application root.
+1. Takes the compiled classes (`${module.classes}`) and the resource directories (`${module.resources}`) as the
+   roots of the Quarkus application. Nothing is unpacked for the module itself.
 2. Reads `${module.runtimeClasspath}` and recovers Maven coordinates for every JAR from its position in the
    Maven repository layout plus the group ID in the sibling POM.
 3. Unpacks every local module JAR into its own directory and adds it as another root of the application, so beans

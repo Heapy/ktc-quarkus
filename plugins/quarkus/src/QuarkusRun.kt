@@ -5,6 +5,7 @@ import org.jetbrains.amper.plugins.Classpath
 import org.jetbrains.amper.plugins.CompilationArtifact
 import org.jetbrains.amper.plugins.ExecutionAvoidance
 import org.jetbrains.amper.plugins.Input
+import org.jetbrains.amper.plugins.ModuleSources
 import org.jetbrains.amper.plugins.Output
 import org.jetbrains.amper.plugins.TaskAction
 import java.nio.file.Path
@@ -18,7 +19,8 @@ private const val DEV_SERVICES_RESULT = "io.quarkus.deployment.builditem.DevServ
 
 @TaskAction(executionAvoidance = ExecutionAvoidance.Disabled)
 fun quarkusRun(
-    @Input appJar: CompilationArtifact,
+    @Input classes: CompilationArtifact,
+    @Input resources: ModuleSources,
     @Input runtimeClasspath: Classpath,
     @Input moduleDir: Path,
     @Input packagedApplication: Path,
@@ -30,7 +32,8 @@ fun quarkusRun(
     val target = run.target ?: System.getProperty("quarkus.run.target")
 
     bootstrapQuarkus(
-        appJar = appJar,
+        classes = classes,
+        resources = resources,
         runtimeClasspath = runtimeClasspath,
         moduleDir = moduleDir,
         outputDir = outputDir,
