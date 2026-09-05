@@ -332,6 +332,26 @@ otherwise. Either way `quarkusGenerateCodeTests` is blocked behind §4.1 and §4
 module's packaging output, so the Quarkus artifact stays behind `./kotlin do quarkusBuild`. Gradle solves this by
 making `quarkusBuild` a dependency of `build`.
 
+### 4.5 Dependency exclusions are ignored ([KTC-5843](https://youtrack.jetbrains.com/issue/KTC-5843))
+
+The toolchain resolves the transitive dependencies that a POM excludes. `quarkus-bootstrap-maven-resolver` declares
+`quarkus-bootstrap-maven4-resolver` with a `*:*` exclusion so that a build running under Maven 3 never sees the
+Maven 4 resolver stack. The plugin classpath gets it anyway, and the Maven 4 artifacts then win conflict
+resolution: `maven-resolver-api` lands on 2.0.13 instead of 1.9.25, `maven-resolver-provider` on 4.0.0-rc-5 instead
+of 3.9.16.
+
+`smallrye-beanbag-maven`, which Quarkus uses to wire the repository system, is built for maven-resolver 1.9.x and
+mis-wires the 2.x remote repository filters, so any artifact resolution fails with
+`ClassCastException: DefaultMetadataResolver cannot be cast to RemoteRepositoryManager`.
+
+Neither a direct version declaration in `module.yaml` nor importing `quarkus-bootstrap-bom` corrects the versions —
+conflict resolution takes the highest. There is no `exclusions` key in `module.yaml` either.
+
+Workaround in `Bootstrap.kt`: both broken components default to enabled in maven-resolver 2.x, and Quarkus copies
+system properties into the resolver session, so `aether.remoteRepositoryFilter.prefixes` and
+`aether.remoteRepositoryFilter.groupId` are set to `false` before the context is built. This covers the components
+that actually break today, nothing more.
+
 ## 5. Recommended order
 
 1. §3.1 image build / push / deploy — thin commands, immediate value.
@@ -340,7 +360,7 @@ making `quarkusBuild` a dependency of `build`.
 4. §3.4 effective configuration — unblocks correct naming and §3.7.
 5. §3.5 local module dependencies — removes the documented limitation.
 6. §3.7 incrementality.
-7. File the two KTC feature requests (§3.6 resolved dependencies without the module's own output; §4.1 test-JVM
-   properties), and ship the `quarkusTestModel` workaround.
+7. File the two remaining KTC feature requests (§3.6 resolved dependencies without the module's own output; §4.1
+   test-JVM properties), and ship the `quarkusTestModel` workaround. §4.5 is filed as KTC-5843.
 8. §3.8 dev mode.
 9. §4.2 code generation, once §3.6 lands.

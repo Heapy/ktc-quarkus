@@ -123,8 +123,9 @@ Deployment-time artifacts are resolved by Quarkus itself into the regular local 
 * A classpath entry that is neither a Maven artifact nor a module JAR is reported and skipped.
 * Native builds need Docker or Podman, unless `containerBuild` is set to `false` and a local GraalVM is on
   `PATH`.
-* The toolchain ignores Maven dependency exclusions, so the plugin classpath mixes maven-resolver 2.x with a
-  1.9.x-era wiring layer. The plugin turns off the two remote repository filters that break under that mix.
+* The toolchain ignores Maven dependency exclusions
+  ([KTC-5843](https://youtrack.jetbrains.com/issue/KTC-5843)), so the plugin classpath mixes maven-resolver 2.x with
+  a 1.9.x-era wiring layer. The plugin turns off the two remote repository filters that break under that mix.
 
 ## Notes
 

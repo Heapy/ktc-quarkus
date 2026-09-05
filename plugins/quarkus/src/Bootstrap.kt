@@ -120,7 +120,7 @@ private fun bootstrapVersion(): String? {
 }
 
 /**
- * The Kotlin Toolchain ignores Maven dependency exclusions, so the plugin classpath ends up with
+ * KTC-5843: the Kotlin Toolchain ignores Maven dependency exclusions, so the plugin classpath ends up with
  * maven-resolver 2.x while smallrye-beanbag wires it as 1.9.x. The remote repository filters are the
  * only components that break under that wiring, and Quarkus copies system properties into the
  * resolver session, so turning them off here keeps resolution working.
