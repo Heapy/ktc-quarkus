@@ -7,7 +7,7 @@ import jakarta.ws.rs.Produces
 import jakarta.ws.rs.core.MediaType
 
 @Path("/hello")
-open class GreetingResource(
+class GreetingResource(
     private val greeter: Greeter,
 ) {
     @GET

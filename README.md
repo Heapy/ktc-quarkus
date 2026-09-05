@@ -39,9 +39,18 @@ dependencies:
   - io.quarkus:quarkus-rest
   - io.quarkus:quarkus-kotlin
 
+settings:
+  kotlin:
+    allOpen:
+      enabled: true
+      presets: [ quarkus ]
+
 plugins:
   quarkus: enabled
 ```
+
+The `quarkus` all-open preset is a toolchain built-in. Without it, a bean in a normal CDI scope needs the Kotlin
+`open` keyword, because a client proxy cannot extend a final class.
 
 Build it:
 
