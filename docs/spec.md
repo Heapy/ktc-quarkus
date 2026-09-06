@@ -5,8 +5,8 @@ What the Quarkus Maven plugin (`devtools/maven`, 32 goals) and the Quarkus Gradl
 in `plugins/quarkus` should implement.
 
 Baseline: KTC `0.12.0`, Quarkus `3.39.2`, plugin source read at Quarkus commit `e1c73424`.
-Today the KTC plugin implements six tasks: `quarkusBuild`, `quarkusNative`, `quarkusRun`, `quarkusImageBuild`,
-`quarkusImagePush` and `quarkusDeploy`.
+Today the KTC plugin implements seven tasks: `quarkusBuild`, `quarkusNative`, `quarkusRun`, `quarkusImageBuild`,
+`quarkusImagePush`, `quarkusDeploy` and `quarkusShowEffectiveConfig`.
 
 Status values used below:
 
@@ -21,7 +21,7 @@ Status values used below:
 |---|---|---|---|---|
 | Package the application (JVM) | `build` | `quarkusBuild` | done | `AugmentAction.createProductionApplication()` |
 | Native executable | `build` + `quarkus.native.enabled` | `buildNative` | done | same, `quarkus.native.*` build properties |
-| Effective build configuration | `track-config-changes` | `quarkusShowEffectiveConfig` | **todo** | `EffectiveConfig`, `SmallRyeConfig` |
+| Effective build configuration | `track-config-changes` | `quarkusShowEffectiveConfig` | done | `EffectiveConfig`, `SmallRyeConfig` |
 | Run the packaged application | `run` | `quarkusRun` | done | `AugmentAction.performCustomBuild(StartDevServicesAndRunCommandHandler)` |
 | Container image build | `image-build` | `imageBuild` | done | forces `quarkus.container-image.build` |
 | Container image push | `image-push` | `imagePush` | done | forces `quarkus.container-image.push` |
@@ -53,11 +53,12 @@ Status values used below:
 
 ## 2. Settings parity
 
-`QuarkusSettings` has 8 properties today. Maven and Gradle expose the following that KTC does not.
+`QuarkusSettings` has 9 properties today. The table lists what Maven and Gradle expose, with the ones KTC
+already covers marked `done`.
 
 | Setting | Maven | Gradle | Effect | Priority |
 |---|---|---|---|---|
-| `finalName` | `finalName` | `finalName` | base name of the runner jar and native binary; sets `quarkus.build.base-name` | high |
+| `finalName` | `finalName` | `finalName` | base name of the runner jar and native binary; sets `quarkus.build.base-name` | done |
 | `skip` | `quarkus.build.skip` | `quarkus.build.skip` | skip augmentation without removing the plugin | medium |
 | `manifestEntries` | `manifestEntries` | `manifest { attributes }` | extra `MANIFEST.MF` attributes | medium |
 | `manifestSections` | `manifestSections` | `manifest { manifestSections }` | per-section manifest attributes | low |
@@ -197,6 +198,32 @@ Do.
 * Change `quarkus.application.name` / `quarkus.application.version` to `putIfAbsent`.
 * Set `quarkus.build.base-name` from the new `finalName` setting, defaulting to the module name.
 * Expose the result through a new `quarkusShowEffectiveConfig` command.
+
+Done. `EffectiveConfig.kt` layers the same sources at the same ordinals on a `SmallRyeConfig` built from
+`smallrye-config-core` and `smallrye-config-source-yaml`. `addPropertiesSources()` and
+`YamlConfigSourceLoader.InClassPath` read the module's resource directories through a `URLClassLoader` that hides
+`META-INF/services`, exactly as `EffectiveConfig.toUrlClassloader` does. `addDefaultInterceptors()` is required:
+without it `%<profile>.` prefixes and `${...}` expressions are not resolved. The profile follows the bootstrap
+mode (`PROD`/`RUN` -> `prod`, `TEST`/`CONTINUOUS_TEST` -> `test`, the dev modes -> `dev`) unless
+`quarkus.profile` is set as a system property, as `QUARKUS_PROFILE`, or in `buildProperties`.
+
+Notes established while implementing it.
+
+* `-Dquarkus.*` reaches the task JVM as `KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.http.port=9999" ./kotlin do ... -m app`,
+  so the system-property source is live and §3.7 can rely on it.
+* `config/application.properties` and `config/application.(yaml|yml)` are resolved by SmallRye against the process
+  `user.dir`, which for the toolchain is the project root, not the module. Gradle has the same behaviour.
+* Only `quarkus.*` and `platform.quarkus.*` keys reach augmentation, as in Gradle's `generateQuarkusConfigMap`.
+  A build-time property under any other prefix cannot be set through `buildProperties`.
+* `quarkus.build.base-name` is informational. `QuarkusAugmentor` overwrites it from the bootstrap base name, so
+  `finalName` always wins, which is what Maven does with its unconditional `put`.
+* Augmentation ranks the build system properties **below** `application.properties`: SmallRye gives the
+  `Build system` source ordinal 100 and `application.properties` 250. So `buildProperties` loses to
+  `application.properties` inside augmentation, while `quarkusShowEffectiveConfig` ranks it at 290 and reports the
+  opposite. Gradle papers over this by re-setting the values as real system properties, but only in a forked
+  worker; in-process it deliberately does not, because that corrupts the running build
+  ([quarkusio/quarkus#55131](https://github.com/quarkusio/quarkus/issues/55131)). The plugin augments in the task
+  JVM, so it takes the same in-process path and inherits the skew.
 
 ### 3.5 Local module dependencies in the application model
 
@@ -533,9 +560,9 @@ Transitive versions that come from an artifact's own parent POM are applied corr
 1. ~~§3.1 image build / push / deploy~~ — done.
 2. ~~§3.2 use `module.classes`~~ — done.
 3. ~~§3.3 `quarkusRun`~~ — done.
-4. §3.4 effective configuration — unblocks correct naming and §3.7. **Next.**
+4. ~~§3.4 effective configuration~~ — done.
 5. ~~§3.5 local module dependencies~~ — done.
-6. §3.7 incrementality.
+6. §3.7 incrementality. **Next.**
 7. File the two remaining KTC feature requests (§3.6 resolved dependencies without the module's own output; §4.1
    test-JVM properties; test-scope references). Also file the one-line `PathTestHelper` fallback against Quarkus,
    and the two resolution gaps of §4.6. Drafts are in `docs/tickets.md`. §4.5 is filed as KTC-5843.

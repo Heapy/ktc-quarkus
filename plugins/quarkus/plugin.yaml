@@ -64,6 +64,16 @@ tasks:
       moduleName: ${module.name}
       settings: ${pluginSettings}
 
+  quarkusShowEffectiveConfig:
+    action: !io.heapy.ktc.quarkus.quarkusShowEffectiveConfig
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+
   quarkusTestModel:
     action: !io.heapy.ktc.quarkus.quarkusTestModel
       classes: ${module.classes}
@@ -82,6 +92,7 @@ commands:
   - quarkusImageBuild
   - quarkusImagePush
   - quarkusDeploy
+  - quarkusShowEffectiveConfig
 
 generated:
   resources:

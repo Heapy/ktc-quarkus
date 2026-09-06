@@ -13,6 +13,12 @@ interface QuarkusSettings {
      */
     val platformBom: String?
 
+    /**
+     * Base name of the runner jar and the native binary, also `quarkus.build.base-name`.
+     * Defaults to the module name.
+     */
+    val finalName: String?
+
     val buildProperties: Map<String, String> get() = emptyMap()
 
     /** Run `native-image` inside a builder container instead of requiring a local GraalVM. */

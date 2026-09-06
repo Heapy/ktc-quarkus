@@ -61,6 +61,7 @@ Build it:
 ./kotlin do quarkusImageBuild -m app  # container image
 ./kotlin do quarkusImagePush -m app   # container image, then push it
 ./kotlin do quarkusDeploy -m app      # deploy to Kubernetes, OpenShift, minikube or kind
+./kotlin do quarkusShowEffectiveConfig -m app   # print the configuration the build will use
 ```
 
 `quarkusImageBuild` needs a `quarkus-container-image-*` extension, and `quarkusDeploy` needs a deployer
@@ -78,7 +79,8 @@ Output goes to `build/tasks/_app_quarkusBuild@quarkus/`:
 | `group`           | `io.heapy.ktc`      | Group ID of the synthetic application artifact                          |
 | `version`         | `1.0.0-SNAPSHOT`    | Version of the application, also `quarkus.application.version`          |
 | `platformBom`     | derived             | `groupId:artifactId:version` of the platform BOM used for the deployment graph. Defaults to `io.quarkus:quarkus-bom` at the Quarkus version found on the runtime classpath |
-| `buildProperties` | empty               | Extra build-time Quarkus configuration                                  |
+| `finalName`       | module name         | Base name of the runner jar and the native binary, also `quarkus.build.base-name` |
+| `buildProperties` | empty               | Extra build-time Quarkus configuration. Only `quarkus.*` keys reach augmentation |
 | `containerBuild`  | `true`              | Run `native-image` inside the Mandrel builder container                 |
 | `run`             | see below           | Options for `quarkusRun`                                                |
 | `image`           | see below           | Options for `quarkusImageBuild` and `quarkusImagePush`                  |
@@ -135,13 +137,24 @@ plugins:
    application. Maven dependencies of those modules are already on the flattened runtime classpath.
 4. Builds a Quarkus `WorkspaceModule` from that and resolves an `ApplicationModel` with
    `BootstrapAppModelResolver`. No `pom.xml` is generated and no Maven or Gradle process is started.
-5. Runs `QuarkusBootstrap` in `PROD` mode and calls `createProductionApplication()`. For `quarkusNative` it sets
+5. Layers the effective configuration on a `SmallRyeConfig`: forced task properties, the system properties and
+   environment of the toolchain JVM, `buildProperties`, the module's `application.yaml` and
+   `application.properties`, and the platform properties of the resolved model.
+6. Runs `QuarkusBootstrap` in `PROD` mode and calls `createProductionApplication()`. For `quarkusNative` it sets
    `quarkus.native.enabled` and `quarkus.native.container-build`.
 
 `quarkusRun` runs `QuarkusBootstrap` in `RUN` mode instead and asks the extensions for a launch command through
 `StartDevServicesAndRunCommandHandler`. Dev Services start as part of that build, and their configuration is
 injected into the launch command. The task reads the packaged application produced by `quarkusBuild`, so the
 toolchain runs `quarkusBuild` first. `Ctrl-C` stops the launched process.
+
+`quarkusShowEffectiveConfig` prints the configuration that the build will use, and the sources it came from, in
+descending priority: forced task properties, system properties, environment, `buildProperties`, `application.yaml`,
+`application.properties`, platform properties, defaults. Pass system properties through the toolchain JVM:
+
+```shell
+KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.package.jar.type=uber-jar" ./kotlin do quarkusBuild -m app
+```
 
 `quarkusImageBuild` and `quarkusImagePush` are the same production build with `quarkus.container-image.*` forced,
 so the container-image extension does the work during augmentation.
@@ -157,6 +170,10 @@ Deployment-time artifacts are resolved by Quarkus itself into the regular local 
 ## Limitations
 
 * A classpath entry that is neither a Maven artifact nor a module JAR is reported and skipped.
+* Inside augmentation Quarkus ranks `application.properties` above the properties the build hands it, so a key set
+  in both `buildProperties` and `application.properties` takes the value from the file, while
+  `quarkusShowEffectiveConfig` reports the other one. Maven and Gradle build the same view. Use a system property
+  to override a file, or the `finalName` setting for the base name.
 * Native builds need Docker or Podman, unless `containerBuild` is set to `false` and a local GraalVM is on
   `PATH`.
 * `jib` is the only container-image builder that works. Quarkus looks for project directories by walking up from
@@ -174,6 +191,8 @@ Deployment-time artifacts are resolved by Quarkus itself into the regular local 
 
 * The plugin pins `quarkus-bootstrap-core` in `plugins/quarkus/module.yaml`. Keep that version equal to the
   Quarkus version the application depends on. The plugin prints a warning when the two differ.
+* The same file pins `smallrye-config-core` and `smallrye-config-source-yaml`. Keep both equal to the
+  `smallrye-config.version` property of `quarkus-bom` for that Quarkus release.
 * With `containerBuild: true` (the default) on macOS or Windows, the native executable is a Linux binary. Run it
   in a container or on a Linux host.
 
