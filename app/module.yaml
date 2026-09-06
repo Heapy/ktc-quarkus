@@ -6,8 +6,18 @@ dependencies:
   - io.quarkus:quarkus-kotlin
   - io.quarkus:quarkus-container-image-jib
   - //lib
+  # The Quarkus test classloader is built from the application model, and the model can only see this module's
+  # main runtime classpath. Anything it has to load belongs here, not in test-dependencies. See docs/spec.md §4.1.
+  - io.quarkus:quarkus-junit
+  # Dropped from quarkus-junit's own graph, see docs/spec.md §4.6.
+  - io.quarkus:quarkus-bootstrap-core:3.39.2
+  - io.rest-assured:rest-assured
 
 settings:
+  jvm:
+    test:
+      extraEnvironment:
+        TEST_TO_MAIN_MAPPINGS: jvmTest/kotlin-output:jvm/kotlin-output
   kotlin:
     allOpen:
       enabled: true

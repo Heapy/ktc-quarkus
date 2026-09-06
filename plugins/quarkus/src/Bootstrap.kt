@@ -30,7 +30,7 @@ import java.util.zip.ZipFile
  * into the bootstrap, so the second bootstrap has to reuse the model of the first one.
  */
 internal class QuarkusApplication(
-    private val applicationModel: ApplicationModel,
+    val applicationModel: ApplicationModel,
     private val applicationRoots: PathList,
     private val moduleDir: Path,
     private val outputDir: Path,
@@ -88,6 +88,7 @@ internal fun resolveApplication(
         .setModuleId(WorkspaceModuleId.of(settings.group, moduleName, settings.version))
         .setModuleDir(moduleDir)
         .setBuildDir(outputDir)
+        .setBuildFile(moduleDir.resolve("module.yaml"))
         .addArtifactSources(
             DefaultArtifactSources(
                 ArtifactSources.MAIN,

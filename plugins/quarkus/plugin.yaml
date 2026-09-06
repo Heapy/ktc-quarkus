@@ -64,6 +64,17 @@ tasks:
       moduleName: ${module.name}
       settings: ${pluginSettings}
 
+  quarkusTestModel:
+    action: !io.heapy.ktc.quarkus.quarkusTestModel
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      modelDir: ${taskOutputDir}/model
+      testResourcesDir: ${taskOutputDir}/test-resources
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+
 commands:
   - quarkusBuild
   - quarkusNative
@@ -71,3 +82,9 @@ commands:
   - quarkusImageBuild
   - quarkusImagePush
   - quarkusDeploy
+
+generated:
+  resources:
+    - directory: ${tasks.quarkusTestModel.action.testResourcesDir}
+      fragment:
+        isTest: true

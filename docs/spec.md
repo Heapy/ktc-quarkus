@@ -31,7 +31,7 @@ Status values used below:
 | Code generation, main sources | `generate-code` | `quarkusGenerateCode` | **blocked** | `CodeGenerator.initAndRun(...)` |
 | Code generation, dev sources | `generate-code` (`launchMode=DEVELOPMENT`) | `quarkusGenerateCodeDev` | blocked | same |
 | Code generation, test sources | `generate-code-tests` | `quarkusGenerateCodeTests` | **blocked** | same |
-| `@QuarkusTest` in the module's own test task | `argLine` injection in `GenerateCodeTestsMojo` | `BeforeTestAction` on `Test` | **blocked**, workaround in §4.1 | `BootstrapConstants.SERIALIZED_TEST_APP_MODEL` |
+| `@QuarkusTest` in the module's own test task | `argLine` injection in `GenerateCodeTestsMojo` | `BeforeTestAction` on `Test` | done, with the §4.1 caveats | `BootstrapConstants.SERIALIZED_TEST_APP_MODEL` |
 | Continuous testing | `test` | `quarkusTest` | blocked | depends on the above |
 | Integration tests against the artifact | failsafe + `quarkus-artifact.properties` | `quarkusIntTest`, `testNative` | blocked | depends on the above |
 | Dev mode | `dev` | `quarkusDev` | **todo** (large) | `DevModeCommandLineBuilder`, `DevModeMain` |
@@ -339,29 +339,35 @@ in `module.yaml`. `ModuleDataForPlugin` in `frontend-api-jvm.jar` exposes exactl
   `<module>jvmTest/resources-output`, and `./kotlin show tasks` reports the producing plugin task as a dependency of
   `:<module>:compileJvmTest`, so `./kotlin test` runs it without a manual `./kotlin do` step.
 
-#### Workaround
+#### Workaround, implemented
 
-Everything except one environment variable can be done from the plugin.
+`./kotlin test -m app` boots the application and passes a `@QuarkusTest` that calls the endpoint. Everything
+except one environment variable is done by the plugin.
 
-* Add a `quarkusTestModel` task that writes, into `${taskOutputDir}`:
-  * the serialized TEST-mode `ApplicationModel` (`ApplicationModelSerializer.serialize`);
-  * a properties file with the values `BeforeTestAction` would have set as system properties;
-  * a precompiled `LauncherSessionListener` class and its `META-INF/services` entry. The class cannot be a
-    `generated.sources` entry, because compiling it needs `junit-platform-launcher` on the module's test compile
-    classpath and a plugin cannot add dependencies. Ship the bytes from the plugin's own jar instead.
-* Declare the output as a test-scope resource, which also wires the task into `compileJvmTest`:
+* `quarkusTestModel` writes the serialized `ApplicationModel` into `${taskOutputDir}/model`, and into
+  `${taskOutputDir}/test-resources`:
+  * `META-INF/ktc-quarkus-test.properties` — `quarkus-internal-test.serialized-app-model.path` and
+    `OUTPUT_SOURCES_DIR`;
+  * `META-INF/services/org.junit.platform.launcher.LauncherSessionListener`;
+  * `QuarkusTestListener.class`. The listener is Java, so it does not drag the plugin's Kotlin stdlib into the test
+    JVM, and it cannot be a `generated.sources` entry: compiling it needs `junit-platform-launcher` on the module's
+    test compile classpath, and a plugin cannot add dependencies. The task copies the bytes out of the plugin's own
+    classpath, and names the class by string — loading it would need the compile-only interface the plugin JVM
+    does not have.
+* The second directory is declared as a test-scope resource, which also wires the task into `compileJvmTest`:
 
   ```yaml
   generated:
     resources:
-      - directory: ${tasks.quarkusTestModel.action.outputDir}
+      - directory: ${tasks.quarkusTestModel.action.testResourcesDir}
         fragment:
           isTest: true
   ```
 
-* At test-session start the listener reads the properties file from the classpath and replays it through
-  `System.setProperty`. Write the listener in Java inside the plugin module, so the class loaded from
-  `resources-output` does not pull the plugin's Kotlin stdlib version into the test JVM.
+* At test-session start the listener reads the properties file from the classpath and applies every value that is
+  not already set, so `--jvm-args` and `settings.jvm.test.systemProperties` still win.
+* The `WorkspaceModule` needs `setBuildFile`. Without it `ApplicationModelSerializer.deserialize` fails with
+  `NullPointerException: "buildFilesStr" is null` — the serialized form has no default for that key.
 
 The listener only covers properties that are read lazily. `quarkus-internal-test.serialized-app-model.path`,
 `OUTPUT_SOURCES_DIR` and the `quarkus.*` values all are. A property read during JVM or launcher bootstrap is not:
@@ -385,9 +391,41 @@ The environment half cannot be closed in-process. `System.getenv` is immutable, 
 value in a `static final` field at class-initialisation time, and writing into `java.lang.ProcessEnvironment` needs
 `--add-opens`, which is the same JVM-argument gap.
 
-End-to-end boot is not demonstrated yet: it waits on `quarkusTestModel` (§5.7). Two open points there — the
-`WorkspaceModule` the plugin builds has no test `ArtifactSources`, and `PathTestHelper.getProjectBuildDir` has not
-been checked against the `build/artifacts/...` layout.
+#### What the module has to declare
+
+```yaml
+dependencies:
+  - io.quarkus:quarkus-junit                    # not quarkus-junit5, see §4.6
+  - io.quarkus:quarkus-bootstrap-core:3.39.2    # dropped from quarkus-junit's graph, see §4.6
+  - io.rest-assured:rest-assured
+
+settings:
+  jvm:
+    test:
+      extraEnvironment:
+        TEST_TO_MAIN_MAPPINGS: jvmTest/kotlin-output:jvm/kotlin-output
+```
+
+The test framework sits in `dependencies`, not `test-dependencies`, and that is the sharp edge. The Quarkus test
+classloader is built from the application model, the model comes from `${module.runtimeClasspath}`, and no reference
+exposes the test classpath. Anything that classloader has to load — `quarkus-junit`, and everything
+`quarkus-test-common` touches, which is why RestAssured is there — has to be on the main runtime classpath.
+Moving them to `test-dependencies` fails: first
+`ClassCastException: BuildChainBuilder cannot be cast to BuildChainBuilder`, because `TestBuildChainFunction` is
+then loaded by the system classloader rather than the augmentation one, and after that
+`NoClassDefFoundError: groovy/lang/GroovyObject`, because `RestAssuredStateManager` runs inside the Quarkus
+classloader and Groovy is not in the model.
+
+This is the strongest argument for the test-scope references in the KTC request below: with
+`module.testRuntimeClasspath` the plugin would build the model Maven and Gradle build, and `test-dependencies` would
+work normally.
+
+`PathTestHelper.getProjectBuildDir` returns `<module>/target` for this layout, because the test classes live outside
+the module directory. Quarkus did not create it in these runs, but it is the directory it would write to.
+
+Known edge: `generated.resources` applies to every module that enables the plugin, so `quarkusTestModel` becomes a
+dependency of `compileJvmTest` there as well, and it fails hard on a module whose runtime classpath has no Quarkus.
+Make the task tolerant before enabling the plugin on such a module.
 
 Two ways to remove that last line, in order of cost:
 
@@ -473,6 +511,23 @@ system properties into the resolver session, so `aether.remoteRepositoryFilter.p
 `aether.remoteRepositoryFilter.groupId` are set to `false` before the context is built. This covers the components
 that actually break today, nothing more.
 
+### 4.6 Maven metadata the toolchain does not apply
+
+Two resolution gaps found while getting `@QuarkusTest` to run. Both are independent of §4.1 and of each other.
+
+* **Relocation POMs are not followed.** `io.quarkus:quarkus-junit5:3.39.2` is a relocation to
+  `io.quarkus:quarkus-junit`, declared in `distributionManagement/relocation`. The toolchain resolves the relocation
+  artifact itself — a 5 KB JAR with nothing but `META-INF` — and reports no problem. Maven and Gradle follow the
+  relocation. Workaround: name the target artifact.
+* **A transitive dependency declared with `<exclusions>` and no version is dropped.** `quarkus-junit` declares
+  `quarkus-bootstrap-core` that way; `io.quarkus.platform:quarkus-bom` manages its version, and every other child of
+  `quarkus-junit` resolves. `quarkus-bootstrap-core` never appears in `./kotlin show dependencies`, with no warning,
+  and the test JVM fails with `NoClassDefFoundError: io/quarkus/bootstrap/classloading/QuarkusClassLoader`.
+  Workaround: declare it in `module.yaml` with an explicit version. Possibly the same root cause as §4.5.
+
+Transitive versions that come from an artifact's own parent POM are applied correctly — `rest-assured` pulls
+`org.apache.groovy:groovy:5.0.3` that way without help.
+
 ## 5. Recommended order
 
 1. ~~§3.1 image build / push / deploy~~ — done.
@@ -482,7 +537,8 @@ that actually break today, nothing more.
 5. ~~§3.5 local module dependencies~~ — done.
 6. §3.7 incrementality.
 7. File the two remaining KTC feature requests (§3.6 resolved dependencies without the module's own output; §4.1
-   test-JVM properties and test-scope references), and ship the `quarkusTestModel` workaround from §4.1.
-   Also file the one-line `PathTestHelper` fallback against Quarkus. §4.5 is filed as KTC-5843.
+   test-JVM properties; test-scope references). Also file the one-line `PathTestHelper` fallback against Quarkus,
+   and the two resolution gaps of §4.6. Drafts are in `docs/tickets.md`. §4.5 is filed as KTC-5843.
+   `quarkusTestModel` is shipped.
 8. §3.8 dev mode.
 9. §4.2 code generation, once §3.6 lands.
