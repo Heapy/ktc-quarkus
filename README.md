@@ -1,13 +1,13 @@
 # Quarkus build plugin for the Kotlin Toolchain
 
-A local [Kotlin Toolchain](https://github.com/JetBrains/kotlin-toolchain) build plugin that runs Quarkus
-augmentation, so a `jvm/app` module can be packaged as a Quarkus JVM application or compiled to a native
-executable.
+Build, run and package a [Quarkus](https://quarkus.io) application from a
+[Kotlin Toolchain](https://github.com/JetBrains/kotlin-toolchain) project — no `pom.xml`, no `build.gradle`, no
+Maven or Gradle process. The plugin runs Quarkus augmentation itself, so a `jvm/app` module becomes a fast-jar, an
+uber-jar, a native binary, a container image or a live-reload dev session.
 
-* Toolchain: `0.12.0`
+* Kotlin Toolchain: `0.12.0`
 * Quarkus: `3.39.2`
-
-## Layout
+* Verified on macOS aarch64 with JDK 25
 
 ```
 project.yaml              # registers the plugin and the modules
@@ -16,9 +16,19 @@ lib/                      # local module the application depends on
 plugins/quarkus/          # the build plugin
 ```
 
-## Usage
+## Install
 
-Register the plugin once in `project.yaml`:
+The toolchain cannot publish build plugins yet
+([KTC-4871](https://youtrack.jetbrains.com/issue/KTC-4871)), so the plugin lives in your project.
+
+**1. Copy the plugin directory into your project.**
+
+```shell
+cp -R plugins/quarkus <your-project>/plugins/quarkus
+```
+
+**2. Register it in `project.yaml`.** The plugin is both a module and a plugin, so it goes in two lists. `app` is
+the sample's module name — use yours here and in every command below.
 
 ```yaml
 modules:
@@ -29,7 +39,7 @@ plugins:
   - //plugins/quarkus
 ```
 
-Enable it in any JVM module that is a Quarkus application:
+**3. Enable it in the application module (`app/module.yaml`).**
 
 ```yaml
 product: jvm/app
@@ -44,114 +54,158 @@ settings:
     allOpen:
       enabled: true
       presets: [ quarkus ]
+      annotations: [ jakarta.enterprise.context.ApplicationScoped ]
 
 plugins:
   quarkus: enabled
 ```
 
-The `quarkus` all-open preset is a toolchain built-in. It opens
-`javax.enterprise.context.ApplicationScoped` and `RequestScoped` only, which Quarkus 3 no longer uses, so beans stay
-final and Quarkus makes them proxyable during augmentation. Add the `jakarta` annotations under
-`allOpen.annotations` to open them at compile time instead:
-
-```yaml
-settings:
-  kotlin:
-    allOpen:
-      enabled: true
-      presets: [ quarkus ]
-      annotations: [ jakarta.enterprise.context.ApplicationScoped ]
-```
-
-Build it:
+**4. Build it.**
 
 ```shell
-./kotlin do quarkusBuild -m app       # JVM fast-jar
-./kotlin do quarkusNative -m app      # native executable
-./kotlin do quarkusRun -m app         # build, then run the packaged application
-./kotlin do quarkusDev -m app         # dev mode with live reload
-./kotlin do quarkusImageBuild -m app  # container image
-./kotlin do quarkusImagePush -m app   # container image, then push it
-./kotlin do quarkusDeploy -m app      # deploy to Kubernetes, OpenShift, minikube or kind
-./kotlin do quarkusShowEffectiveConfig -m app   # print the configuration the build will use
-./kotlin do quarkusInfo -m app              # platform BOMs and extensions
-./kotlin do quarkusDependencyTree -m app    # dependency graph, deployment artifacts included
-./kotlin do quarkusDependencyList -m app    # the same graph, flat and sorted
-./kotlin do quarkusDependencySbom -m app    # CycloneDX SBOM
-./kotlin do quarkusGoOffline -m app         # download everything a later build needs
+./kotlin do quarkusBuild -m app
+java -jar build/tasks/_app_quarkusBuild@quarkus/quarkus-app/quarkus-run.jar
 ```
 
-`quarkusImageBuild` needs a `quarkus-container-image-*` extension, and `quarkusDeploy` needs a deployer
-extension such as `quarkus-kubernetes`.
+**5. Keep the plugin's own versions in step with yours.** `plugins/quarkus/module.yaml` pins the Quarkus
+libraries the plugin runs on. When you move to another Quarkus release, change all of them:
 
-Output goes to `build/tasks/_app_quarkusBuild@quarkus/`:
+| Pin | Keep equal to |
+|---|---|
+| `io.quarkus:quarkus-bootstrap-core` | your Quarkus version |
+| `io.quarkus:quarkus-bootstrap-maven-resolver` | your Quarkus version |
+| `io.quarkus:quarkus-core-deployment` | your Quarkus version |
+| `io.quarkus:quarkus-cyclonedx-generator` | your Quarkus version |
+| `io.smallrye.config:smallrye-config-core` | `smallrye-config.version` in `quarkus-bom` for that release |
+| `io.smallrye.config:smallrye-config-source-yaml` | the same |
 
-* `quarkus-app/quarkus-run.jar` — run with `java -jar`
-* `app-runner` — native executable (from `quarkusNative`)
+The plugin prints a warning when its bootstrap version and your Quarkus version differ.
+
+## Coming from Maven or Gradle
+
+Same result, different command. `-m app` names the module.
+
+| You want | Maven | Gradle | Here |
+|---|---|---|---|
+| Package the application | `mvn package` | `gradle quarkusBuild` | `./kotlin do quarkusBuild -m app` |
+| Native executable | `mvn package -Dquarkus.native.enabled=true` | `gradle buildNative` | `./kotlin do quarkusNative -m app` |
+| Run the packaged application | `mvn quarkus:run` | `gradle quarkusRun` | `./kotlin do quarkusRun -m app` |
+| Dev mode with live reload | `mvn quarkus:dev` | `gradle quarkusDev` | `./kotlin do quarkusDev -m app` |
+| Run the tests | `mvn test` | `gradle test` | `./kotlin test -m app` |
+| Container image | `mvn quarkus:image-build` | `gradle imageBuild` | `./kotlin do quarkusImageBuild -m app` |
+| Build and push the image | `mvn quarkus:image-push` | `gradle imagePush` | `./kotlin do quarkusImagePush -m app` |
+| Deploy to Kubernetes | `mvn quarkus:deploy` | `gradle deploy` | `./kotlin do quarkusDeploy -m app` |
+| See the effective configuration | `mvn quarkus:track-config-changes` | `gradle quarkusShowEffectiveConfig` | `./kotlin do quarkusShowEffectiveConfig -m app` |
+| Platform BOMs and extensions | `mvn quarkus:info` | `gradle quarkusInfo` | `./kotlin do quarkusInfo -m app` |
+| Dependency tree, deployment included | `mvn quarkus:dependency-tree` | — | `./kotlin do quarkusDependencyTree -m app` |
+| Flat dependency list | `mvn quarkus:dependency-list` | — | `./kotlin do quarkusDependencyList -m app` |
+| CycloneDX SBOM | `mvn quarkus:dependency-sbom` | — | `./kotlin do quarkusDependencySbom -m app` |
+| Download everything for offline use | `mvn quarkus:go-offline` | `gradle quarkusGoOffline` | `./kotlin do quarkusGoOffline -m app` |
+
+`quarkusImageBuild` needs a `quarkus-container-image-*` extension. `quarkusDeploy` needs a deployer extension such
+as `quarkus-kubernetes`.
+
+### Configuration
+
+| You configure | Maven (`pom.xml`) | Gradle (`build.gradle`) | Here (`module.yaml`) |
+|---|---|---|---|
+| Extensions | `<dependency>` | `implementation(...)` | `dependencies:` |
+| Platform BOM | `<dependencyManagement>` import | `enforcedPlatform(...)` | `- bom: io.quarkus.platform:quarkus-bom:3.39.2` |
+| A local module | `<dependency>` on a sibling | `project(":lib")` | `- //lib` |
+| Build-time Quarkus properties | `<properties>` | `quarkus { quarkusBuildProperties }` | `plugins.quarkus.buildProperties` |
+| Runner jar name | `<finalName>` | `quarkus { finalName }` | `plugins.quarkus.finalName` |
+| Manifest attributes | `<manifestEntries>` | `quarkus { manifest { attributes } }` | `plugins.quarkus.manifestEntries` |
+| Manifest sections | `<manifestSections>` | `quarkus { manifest { manifestSections } }` | `plugins.quarkus.manifestSections` |
+| Entries kept out of the jar | `<ignoredEntries>` | `quarkus { ignoredEntries }` | `plugins.quarkus.ignoredEntries` |
+| Skip the Quarkus build | `-Dquarkus.build.skip` | `-Dquarkus.build.skip` | `plugins.quarkus.skip` |
+| Dev-mode JVM options | `quarkus:dev -Djvm.args=...` | `quarkusDev { jvmArgs }` | `plugins.quarkus.dev.jvmArgs` |
+| Kotlin all-open | `kotlin-maven-plugin`, `all-open` | `kotlin("plugin.allopen")` | `settings.kotlin.allOpen` |
+| A one-off `-Dquarkus.*` value | `-Dquarkus.foo=bar` | `-Dquarkus.foo=bar` | `KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.foo=bar"` |
+
+The last row is the one that surprises people. `./kotlin do quarkusBuild -m app -Dquarkus.foo=bar` fails with
+`no such option`, so a one-off property travels in an environment variable instead:
+
+```shell
+KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.package.jar.type=uber-jar" ./kotlin do quarkusBuild -m app
+```
+
+That value also takes part in the up-to-date check, so changing it re-runs augmentation and repeating it does not.
+
+### Tests
+
+`@QuarkusTest` runs from the module's own test task:
+
+```shell
+./kotlin test -m app
+```
+
+Two things have to be declared by hand, and they are the sharp edge of this plugin. The Quarkus test classloader
+is built from the application model, the model comes from the module's **main** runtime classpath, and no toolchain
+reference exposes the test classpath. So the test framework belongs in `dependencies`, not `test-dependencies`:
+
+```yaml
+dependencies:
+  - io.quarkus:quarkus-junit                    # not quarkus-junit5
+  - io.quarkus:quarkus-bootstrap-core:3.39.2    # dropped from quarkus-junit's own graph
+  - io.rest-assured:rest-assured
+
+settings:
+  jvm:
+    test:
+      extraEnvironment:
+        TEST_TO_MAIN_MAPPINGS: jvmTest/kotlin-output:jvm/kotlin-output
+```
+
+Everything else `@QuarkusTest` needs — the serialized application model and the system properties that point at it
+— the plugin supplies on its own.
+
+## What does not work yet
+
+| Thing | State | What to do instead |
+|---|---|---|
+| Code generation (gRPC, Avro, protobuf) | Blocked. A plugin cannot see the resolved dependency graph, which the generators need | Generate the sources outside the build |
+| Integration tests (`quarkusIntTest`, `testNative`) | Blocked. Depends on the test-classpath gap below | Run the packaged artifact yourself |
+| Continuous testing | Not wired as a command. The dev-mode console does offer `[r] to resume testing`; untested here | `./kotlin test -m app` |
+| Remote dev mode | Not implemented | — |
+| `./kotlin package` producing the Quarkus artifact | No hook lets a plugin replace a module's packaging output | `./kotlin do quarkusBuild -m app` |
+| Test framework in `test-dependencies` | Fails with `ClassCastException: BuildChainBuilder cannot be cast to BuildChainBuilder` | Put it in `dependencies`, see [Tests](#tests) |
+| `TEST_TO_MAIN_MAPPINGS` | Must be written by hand in every module with a `@QuarkusTest`. `PathTestHelper` reads it from the environment only, and a plugin cannot set one | The `settings.jvm.test.extraEnvironment` block, see [Tests](#tests) |
+| `docker`, `podman`, `buildpack`, `openshift` image builders | Broken. Quarkus locates the project by walking up for a `src/main` directory, which a toolchain module does not have | Use `jib` |
+| Maven dependency exclusions | The toolchain ignores them ([KTC-5843](https://youtrack.jetbrains.com/issue/KTC-5843)) | Declare the affected dependency with an explicit version |
+| Maven relocation POMs | Not followed. `quarkus-junit5` resolves to a 5 KB stub with no transitive dependencies | Name the relocation target, `quarkus-junit` |
+| `buildProperties` vs `application.properties` | Inside augmentation the file wins, while `quarkusShowEffectiveConfig` reports the other one. Maven and Gradle build the same view | Override with a system property, or use `finalName` for the base name |
+| Dev mode and `module.yaml` | The file is not watched | Restart the dev session |
+| Dev mode and a local module change | Restarts the whole application; local modules are not separate reloadable archives | — |
+| all-open `quarkus` preset | Covers `javax.enterprise.context.*`, which Quarkus 3 no longer uses, so it opens nothing. Quarkus makes final beans proxyable itself | List the `jakarta` annotations under `allOpen.annotations` |
+| SBOM licence of the application component | Missing. Licences come from a component's POM and the toolchain publishes none for a module | — |
+| A classpath entry that is neither a Maven artifact nor a module JAR | Reported and skipped | — |
+| Native build without a container | Needs Docker or Podman by default | `containerBuild: false` and a local GraalVM, see [below](#a-native-binary-for-the-host-platform) |
+| `quarkusRun` and `quarkusDev` on an old JDK | They fork the JVM that runs the toolchain, so a `KOTLIN_CLI_JAVA_HOME` older than `settings.jvm.release` fails | Point `KOTLIN_CLI_JAVA_HOME` at a matching JDK |
+
+Background and evidence for each of these: [`docs/spec.md`](docs/spec.md).
 
 ## Settings
 
-| Setting           | Default             | Meaning                                                                 |
-|-------------------|---------------------|-------------------------------------------------------------------------|
-| `group`           | `io.heapy.ktc`      | Group ID of the synthetic application artifact                          |
-| `version`         | `1.0.0-SNAPSHOT`    | Version of the application, also `quarkus.application.version`          |
-| `platformBom`     | derived             | `groupId:artifactId:version` of the platform BOM used for the deployment graph. Defaults to `io.quarkus:quarkus-bom` at the Quarkus version found on the runtime classpath |
-| `finalName`       | module name         | Base name of the runner jar and the native binary, also `quarkus.build.base-name` |
-| `buildProperties` | empty               | Extra build-time Quarkus configuration. Only `quarkus.*` keys reach augmentation |
-| `skip`            | `false`             | Skip augmentation without removing the plugin. Falls back to the `quarkus.build.skip` system property |
-| `manifestEntries` | empty               | Extra attributes of the main section of `MANIFEST.MF`                   |
-| `manifestSections`| empty               | Extra `MANIFEST.MF` attributes, keyed by section name                   |
-| `ignoredEntries`  | empty               | Paths kept out of the runner jar. A value in `application.properties` wins |
-| `cleanupBuildOutput` | `true`           | Delete the previous output before augmenting, so a changed package type leaves nothing behind |
+Everything below goes under `plugins.quarkus` in `module.yaml`.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `group` | `io.heapy.ktc` | Group ID of the synthetic application artifact |
+| `version` | `1.0.0-SNAPSHOT` | Version of the application, also `quarkus.application.version` |
+| `platformBom` | derived | `groupId:artifactId:version` of the platform BOM used for the deployment graph. Defaults to `io.quarkus:quarkus-bom` at the Quarkus version found on the runtime classpath |
+| `finalName` | module name | Base name of the runner jar and the native binary, also `quarkus.build.base-name` |
+| `buildProperties` | empty | Extra build-time Quarkus configuration. Only `quarkus.*` keys reach augmentation |
+| `skip` | `false` | Skip augmentation without removing the plugin. Falls back to the `quarkus.build.skip` system property |
+| `manifestEntries` | empty | Extra attributes of the main section of `MANIFEST.MF` |
+| `manifestSections` | empty | Extra `MANIFEST.MF` attributes, keyed by section name |
+| `ignoredEntries` | empty | Paths kept out of the runner jar. A value in `application.properties` wins |
+| `cleanupBuildOutput` | `true` | Delete the previous output before augmenting, so a changed package type leaves nothing behind |
 | `cachingRelevantProperties` | `quarkus[.].*`, `platform[.]quarkus[.].*` | Anchored regular expressions over property names whose values take part in the up-to-date check of `quarkusBuild` and `quarkusNative`. A pattern that matches no property is looked up as an environment variable |
-| `containerBuild`  | `true`              | Run `native-image` inside the Mandrel builder container                 |
-| `run`             | see below           | Options for `quarkusRun`                                                |
-| `dev`             | see below           | Options for `quarkusDev`                                                |
-| `image`           | see below           | Options for `quarkusImageBuild` and `quarkusImagePush`                  |
-| `deploy`          | see below           | Options for `quarkusDeploy`                                             |
-
-### `run`
-
-| Setting            | Default | Meaning                                                                                  |
-|--------------------|---------|------------------------------------------------------------------------------------------|
-| `jvmArgs`          | empty   | JVM options, inserted right after the executable                                          |
-| `systemProperties` | empty   | Passed to the process as `-Dkey=value`                                                    |
-| `environment`      | empty   | Added to the environment of the process                                                   |
-| `arguments`        | empty   | Program arguments. When empty, the `QUARKUS_RUN_ARGS` environment variable is split on spaces |
-| `workingDirectory` | module root | Working directory, relative to the module root. An extension that names its own directory wins |
-| `target`           | derived | Which run command to use when several extensions provide one. Falls back to the `quarkus.run.target` system property |
-
-### `dev`
-
-| Setting            | Default     | Meaning                                                                    |
-|--------------------|-------------|----------------------------------------------------------------------------|
-| `jvmArgs`          | empty       | JVM options for the dev-mode process                                        |
-| `arguments`        | empty       | Program arguments for the application                                       |
-| `environment`      | empty       | Environment variables added to the dev-mode process                         |
-| `workingDirectory` | module root | Working directory, relative to the module root                              |
-| `debug`            | derived     | `true`, `false`, `client` or a port. Falls back to the `debug` system property. Quarkus listens on `debugPort` unless this is `false` |
-| `suspend`          | derived     | Wait for a debugger before starting. Falls back to the `suspend` system property |
-| `debugHost`        | `localhost` | Falls back to the `debugHost` system property                               |
-| `debugPort`        | `5005`      | Falls back to the `debugPort` system property                               |
-| `openJavaLang`     | `false`     | Add `--add-opens=java.base/java.lang=ALL-UNNAMED`                            |
-| `modules`          | empty       | Java modules to add with `--add-modules`                                     |
-| `compilerArgs`     | empty       | Extra arguments for the Kotlin compiler that recompiles changed sources      |
-| `forceC2`          | `false`     | Keep the C2 compiler enabled. Dev mode disables it for faster startup        |
-
-### `image`
-
-| Setting   | Default | Meaning                                                                                          |
-|-----------|---------|--------------------------------------------------------------------------------------------------|
-| `builder` | derived | `docker`, `podman`, `jib`, `buildpack` or `openshift`. Defaults to the container-image extension on the runtime classpath, then `docker`. Falls back to the `quarkus.container-image.builder` system property |
-
-### `deploy`
-
-| Setting        | Default | Meaning                                                                                     |
-|----------------|---------|-----------------------------------------------------------------------------------------------|
-| `target`       | derived | Which extension-provided deploy command to run when several extensions declare one. Falls back to the `quarkus.deploy.target` system property |
-| `deployer`     | derived | `kubernetes`, `minikube`, `kind`, `knative` or `openshift`. Used when no extension declares a deploy command. Defaults to the deployer extension on the runtime classpath, then `kubernetes` |
-| `imageBuild`   | `false` | Build the container image as part of the deployment                                          |
-| `imageBuilder` | none    | Which extension builds that image. Implies `imageBuild`                                      |
+| `containerBuild` | `true` | Run `native-image` inside the Mandrel builder container |
+| `run` | see below | Options for `quarkusRun` |
+| `dev` | see below | Options for `quarkusDev` |
+| `image` | see below | Options for `quarkusImageBuild` and `quarkusImagePush` |
+| `deploy` | see below | Options for `quarkusDeploy` |
 
 ```yaml
 plugins:
@@ -173,6 +227,104 @@ plugins:
       deployer: minikube
       imageBuild: true
 ```
+
+### `run`
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `jvmArgs` | empty | JVM options, inserted right after the executable |
+| `systemProperties` | empty | Passed to the process as `-Dkey=value` |
+| `environment` | empty | Added to the environment of the process |
+| `arguments` | empty | Program arguments. When empty, the `QUARKUS_RUN_ARGS` environment variable is split on spaces |
+| `workingDirectory` | module root | Working directory, relative to the module root. An extension that names its own directory wins |
+| `target` | derived | Which run command to use when several extensions provide one. Falls back to the `quarkus.run.target` system property |
+
+### `dev`
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `jvmArgs` | empty | JVM options for the dev-mode process |
+| `arguments` | empty | Program arguments for the application |
+| `environment` | empty | Environment variables added to the dev-mode process |
+| `workingDirectory` | module root | Working directory, relative to the module root |
+| `debug` | derived | `true`, `false`, `client` or a port. Falls back to the `debug` system property. Quarkus listens on `debugPort` unless this is `false` |
+| `suspend` | derived | Wait for a debugger before starting. Falls back to the `suspend` system property |
+| `debugHost` | `localhost` | Falls back to the `debugHost` system property |
+| `debugPort` | `5005` | Falls back to the `debugPort` system property |
+| `openJavaLang` | `false` | Add `--add-opens=java.base/java.lang=ALL-UNNAMED` |
+| `modules` | empty | Java modules to add with `--add-modules` |
+| `compilerArgs` | empty | Extra arguments for the Kotlin compiler that recompiles changed sources |
+| `forceC2` | `false` | Keep the C2 compiler enabled. Dev mode disables it for faster startup |
+
+### `image`
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `builder` | derived | `docker`, `podman`, `jib`, `buildpack` or `openshift`. Defaults to the container-image extension on the runtime classpath, then `docker`. Falls back to the `quarkus.container-image.builder` system property |
+
+### `deploy`
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `target` | derived | Which extension-provided deploy command to run when several extensions declare one. Falls back to the `quarkus.deploy.target` system property |
+| `deployer` | derived | `kubernetes`, `minikube`, `kind`, `knative` or `openshift`. Used when no extension declares a deploy command. Defaults to the deployer extension on the runtime classpath, then `kubernetes` |
+| `imageBuild` | `false` | Build the container image as part of the deployment |
+| `imageBuilder` | none | Which extension builds that image. Implies `imageBuild` |
+
+### Switches of the diagnostic commands
+
+`plugin.yaml` arguments are static, so these travel as system properties:
+
+| Property | Values | Applies to |
+|---|---|---|
+| `quarkus.mode` | `prod` (default), `test`, `dev` | info, tree, list, sbom, go-offline |
+| `quarkus.dependency.verbose` | `true` | tree, list |
+| `quarkus.dependency.graph` | `true` | tree |
+| `quarkus.dependency.runtime-only` | `true` | tree |
+| `quarkus.dependency.flags` | comma-separated flag names, e.g. `direct,runtime-cp` | list |
+| `quarkus.dependency.sbom.format` | `json` (default), `xml` | sbom |
+| `quarkus.dependency.sbom.schema-version` | e.g. `1.5` | sbom |
+| `quarkus.dependency.sbom.pretty-print` | `true` | sbom |
+| `quarkus.dependency.sbom.include-license-text` | `true` | sbom |
+| `quarkus.dependency.sbom.runtime-only` | `true` | sbom |
+| `quarkus.dependency.sbom.include-quarkus-component-scope` | `true` | sbom |
+
+```shell
+KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.mode=test -Dquarkus.dependency.flags=reloadable" ./kotlin do quarkusDependencyList -m app
+```
+
+## Output
+
+Each command writes into its own directory under `build/tasks/`:
+
+| Command | Output |
+|---|---|
+| `quarkusBuild` | `_app_quarkusBuild@quarkus/quarkus-app/quarkus-run.jar`, or `<finalName>-runner.jar` for an uber or legacy jar |
+| `quarkusNative` | `_app_quarkusNative@quarkus/<finalName>-runner` |
+| `quarkusDependencySbom` | `_app_quarkusDependencySbom@quarkus/<finalName>-<version>-dependency-cyclonedx.json` |
+| `quarkusEffectiveConfig`, run by the build | `_app_quarkusEffectiveConfig@quarkus/effective-config.properties` |
+
+Deployment-time artifacts are resolved by Quarkus into the regular local Maven repository (`~/.m2/repository`).
+
+## A native binary for the host platform
+
+With `containerBuild: true` (the default) on macOS or Windows, the native executable is a Linux binary. Run it in a
+container or on a Linux host. For a host binary, set `containerBuild: false` and point Quarkus at a local GraalVM or
+Mandrel:
+
+```yaml
+plugins:
+  quarkus:
+    enabled: true
+    containerBuild: false
+```
+
+```shell
+GRAALVM_HOME=$(sdk home java 25.0.2.r25-mandrel) ./kotlin do quarkusNative -m app
+```
+
+Use a distribution whose JDK version matches `settings.jvm.release` of the module, which defaults to the toolchain
+JDK. Verified on macOS aarch64 with Mandrel `25.0.2.r25`: `app-runner` is a Mach-O arm64 executable.
 
 ## How it works
 
@@ -198,16 +350,10 @@ toolchain runs `quarkusBuild` first. `Ctrl-C` stops the launched process.
 
 `quarkusShowEffectiveConfig` prints the configuration that the build will use, and the sources it came from, in
 descending priority: forced task properties, system properties, environment, `buildProperties`, `application.yaml`,
-`application.properties`, platform properties, defaults. Pass system properties through the toolchain JVM:
-
-```shell
-KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.package.jar.type=uber-jar" ./kotlin do quarkusBuild -m app
-```
-
-`quarkusEffectiveConfig` writes those values, narrowed by `cachingRelevantProperties`, to
-`effective-config.properties`. `quarkusBuild` and `quarkusNative` take that file as an input, so changing a system
-property or an environment variable re-runs augmentation and repeating the same one does not. The task itself runs
-on every invocation and rewrites the file only when the content differs.
+`application.properties`, platform properties, defaults. `quarkusEffectiveConfig` writes those values, narrowed by
+`cachingRelevantProperties`, to `effective-config.properties`. `quarkusBuild` and `quarkusNative` take that file as
+an input, which is how a system property or an environment variable reaches the up-to-date check at all. That task
+runs on every invocation and rewrites the file only when the content differs.
 
 `quarkusDev` resolves the model in dev mode, builds a command line with `DevModeCommandLineBuilder` and forks a JVM
 that runs `DevModeMain`. The dev-mode process gets its own classpath: `quarkus-core-deployment` and
@@ -223,26 +369,6 @@ only read the resolved model, so none of them augments the application. `quarkus
 the extensions from the model rather than from a `QuarkusProject`, which would need an extension manager that can
 rewrite `module.yaml`. `quarkusGoOffline` resolves the model in all three modes, so a later build needs no network.
 
-Their switches travel as system properties, because `plugin.yaml` arguments are static:
-
-| Property | Values | Applies to |
-|---|---|---|
-| `quarkus.mode` | `prod` (default), `test`, `dev` | all five |
-| `quarkus.dependency.verbose` | `true` | tree, list |
-| `quarkus.dependency.graph` | `true` | tree |
-| `quarkus.dependency.runtime-only` | `true` | tree |
-| `quarkus.dependency.flags` | comma-separated flag names, e.g. `direct,runtime-cp` | list |
-| `quarkus.dependency.sbom.format` | `json` (default), `xml` | sbom |
-| `quarkus.dependency.sbom.schema-version` | e.g. `1.5` | sbom |
-| `quarkus.dependency.sbom.pretty-print` | `true` | sbom |
-| `quarkus.dependency.sbom.include-license-text` | `true` | sbom |
-| `quarkus.dependency.sbom.runtime-only` | `true` | sbom |
-| `quarkus.dependency.sbom.include-quarkus-component-scope` | `true` | sbom |
-
-```shell
-KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.mode=test -Dquarkus.dependency.flags=reloadable" ./kotlin do quarkusDependencyList -m app
-```
-
 `quarkusImageBuild` and `quarkusImagePush` are the same production build with `quarkus.container-image.*` forced,
 so the container-image extension does the work during augmentation.
 
@@ -251,64 +377,6 @@ does, it runs that command. If none does — which is still the case for Kuberne
 second time with `quarkus.<deployer>.deploy` forced and runs a normal production build, which is what those
 extensions hook into. Both bootstraps share one resolved application model.
 
-Deployment-time artifacts are resolved by Quarkus itself into the regular local Maven repository
-(`~/.m2/repository`).
-
-## Limitations
-
-* A classpath entry that is neither a Maven artifact nor a module JAR is reported and skipped.
-* The SBOM carries no licence or description for the application component itself. Those come from a component's
-  POM, and the toolchain publishes none for a module.
-* Dev mode does not watch `module.yaml`. A change there needs a restart.
-* Dev mode restarts the whole application when a local module changes; local modules are not separate reloadable
-  archives.
-* The `quarkus` preset of `settings.kotlin.allOpen` covers `javax.enterprise.context.ApplicationScoped` and
-  `RequestScoped`, which Quarkus 3 no longer uses, so it opens nothing. Beans stay final and Quarkus makes them
-  proxyable itself. List the `jakarta` annotations under `allOpen.annotations` to open them at compile time.
-* `quarkusRun` and `quarkusDev` fork the JVM that runs the toolchain. A `KOTLIN_CLI_JAVA_HOME` older than
-  `settings.jvm.release` fails there.
-* Inside augmentation Quarkus ranks `application.properties` above the properties the build hands it, so a key set
-  in both `buildProperties` and `application.properties` takes the value from the file, while
-  `quarkusShowEffectiveConfig` reports the other one. Maven and Gradle build the same view. Use a system property
-  to override a file, or the `finalName` setting for the base name.
-* Native builds need Docker or Podman, unless `containerBuild` is set to `false` and a local GraalVM is on
-  `PATH`.
-* `jib` is the only container-image builder that works. Quarkus looks for project directories by walking up from
-  the build directory in search of a `src/main` directory, and a Kotlin Toolchain module has `src` and `resources`
-  instead. `docker` and `podman` then fail with "Unable to find root of Dockerfile files"
-  (`quarkus.docker.dockerfile-jvm-path` does not help, because the same lookup decides the build context),
-  `buildpack` with "Buildpack build unable to determine project dir", and `openshift` with an NPE under its
-  `docker` build strategy. The sample application depends on `io.quarkus:quarkus-container-image-jib` for that
-  reason.
-* The toolchain ignores Maven dependency exclusions
-  ([KTC-5843](https://youtrack.jetbrains.com/issue/KTC-5843)), so the plugin classpath mixes maven-resolver 2.x with
-  a 1.9.x-era wiring layer. The plugin turns off the two remote repository filters that break under that mix.
-
-## Notes
-
-* The plugin pins `quarkus-bootstrap-core` in `plugins/quarkus/module.yaml`. Keep that version equal to the
-  Quarkus version the application depends on. The plugin prints a warning when the two differ.
-* The same file pins `quarkus-core-deployment`, which `quarkusDev` needs, `quarkus-cyclonedx-generator`, which
-  `quarkusDependencySbom` needs, and `smallrye-config-core` and `smallrye-config-source-yaml`. Keep the first two
-  equal to the Quarkus version and the other two equal to the `smallrye-config.version` property of `quarkus-bom`
-  for that release.
-* With `containerBuild: true` (the default) on macOS or Windows, the native executable is a Linux binary. Run it
-  in a container or on a Linux host.
-
-### A native binary for the host platform
-
-Set `containerBuild: false` and point Quarkus at a local GraalVM or Mandrel:
-
-```yaml
-plugins:
-  quarkus:
-    enabled: true
-    containerBuild: false
-```
-
-```shell
-GRAALVM_HOME=$(sdk home java 25.0.2.r25-mandrel) ./kotlin do quarkusNative -m app
-```
-
-Use a distribution whose JDK version matches `settings.jvm.release` of the module, which defaults to the
-toolchain JDK. Verified on macOS aarch64 with Mandrel `25.0.2.r25`: `app-runner` is a Mach-O arm64 executable.
+The toolchain ignores Maven dependency exclusions
+([KTC-5843](https://youtrack.jetbrains.com/issue/KTC-5843)), so the plugin classpath mixes maven-resolver 2.x with
+a 1.9.x-era wiring layer. The plugin turns off the two remote repository filters that break under that mix.
