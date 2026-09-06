@@ -30,6 +30,8 @@ fun quarkusEffectiveConfig(
         platformProperties = emptyMap(),
         buildProperties = settings.buildProperties,
         forcedProperties = emptyMap(),
+        taskProperties = manifestProperties(settings),
+        defaultProperties = ignoredEntriesProperties(settings),
         applicationName = moduleName,
         applicationVersion = settings.version,
         baseName = settings.finalName ?: moduleName,

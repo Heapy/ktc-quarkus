@@ -54,18 +54,27 @@ Status values used below:
 
 ## 2. Settings parity
 
-`QuarkusSettings` has 9 properties today. The table lists what Maven and Gradle expose, with the ones KTC
+`QuarkusSettings` has 15 properties today. The table lists what Maven and Gradle expose, with the ones KTC
 already covers marked `done`.
+
+The five small ones land on the layering of §3.4 rather than on a task. `manifestEntries` and `manifestSections`
+become `quarkus.package.jar.manifest.attributes."<key>"` and
+`quarkus.package.jar.manifest.sections."<section>"."<key>"` in the task-properties source (ordinal 500), so they
+beat `application.properties`, as in Gradle. `ignoredEntries` becomes
+`quarkus.package.jar.user-configured-ignored-entries` as a *default* value, so the module's own configuration wins
+over it, again as in Gradle. `skip` and `cleanupBuildOutput` are handled by the build action itself: `skip` also
+reads the `quarkus.build.skip` system property, and `cleanupBuildOutput` deletes the task output directory before
+augmenting, so switching the package type leaves no stale `quarkus-app` or runner jar behind.
 
 | Setting | Maven | Gradle | Effect | Priority |
 |---|---|---|---|---|
 | `finalName` | `finalName` | `finalName` | base name of the runner jar and native binary; sets `quarkus.build.base-name` | done |
-| `skip` | `quarkus.build.skip` | `quarkus.build.skip` | skip augmentation without removing the plugin | medium |
-| `manifestEntries` | `manifestEntries` | `manifest { attributes }` | extra `MANIFEST.MF` attributes | medium |
-| `manifestSections` | `manifestSections` | `manifest { manifestSections }` | per-section manifest attributes | low |
-| `ignoredEntries` | `ignoredEntries` | `ignoredEntries` | maps to `quarkus.package.jar.user-configured-ignored-entries` | medium |
+| `skip` | `quarkus.build.skip` | `quarkus.build.skip` | skip augmentation without removing the plugin | done |
+| `manifestEntries` | `manifestEntries` | `manifest { attributes }` | extra `MANIFEST.MF` attributes | done |
+| `manifestSections` | `manifestSections` | `manifest { manifestSections }` | per-section manifest attributes | done |
+| `ignoredEntries` | `ignoredEntries` | `ignoredEntries` | maps to `quarkus.package.jar.user-configured-ignored-entries` | done |
 | `cachingRelevantProperties` | — | `cachingRelevantProperties` | property patterns that take part in the up-to-date check | done |
-| `cleanupBuildOutput` | — | `cleanupBuildOutput` | delete previous output before augmentation | low |
+| `cleanupBuildOutput` | — | `cleanupBuildOutput` | delete previous output before augmentation | done |
 | `codeGenerationInputs` | derived from source roots | `codeGenerationInputs` | extra input directories for code generators | with §4.2 |
 | `codeGenerationProviders` | — | `codeGenerationProviders` | restrict which generators run | with §4.2 |
 | `nativeBuilderImage` | via `quarkus.native.builder-image` | same | already reachable through `buildProperties` | none |

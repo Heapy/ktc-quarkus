@@ -9,6 +9,8 @@ import org.jetbrains.amper.plugins.Output
 import org.jetbrains.amper.plugins.TaskAction
 import java.nio.file.Path
 
+private const val BUILD_SKIP = "quarkus.build.skip"
+
 /**
  * `effectiveConfig` is declared but not read: it is the file `quarkusEffectiveConfig` writes, and taking it as an
  * input is what makes a changed system property or environment variable invalidate this task.
@@ -25,6 +27,14 @@ fun quarkusBuild(
     settings: QuarkusSettings,
     nativeImage: Boolean = false,
 ) {
+    if (settings.skip || System.getProperty(BUILD_SKIP) == "true") {
+        println("Skipping the Quarkus build of '$moduleName'")
+        return
+    }
+    if (settings.cleanupBuildOutput) {
+        outputDir.toFile().deleteRecursively()
+    }
+
     val nativeProperties = if (nativeImage) {
         mapOf(
             "quarkus.native.enabled" to "true",

@@ -21,6 +21,24 @@ interface QuarkusSettings {
 
     val buildProperties: Map<String, String> get() = emptyMap()
 
+    /** Skip augmentation without removing the plugin. Falls back to the `quarkus.build.skip` system property. */
+    val skip: Boolean get() = false
+
+    /** Extra attributes of the main section of `MANIFEST.MF`. */
+    val manifestEntries: Map<String, String> get() = emptyMap()
+
+    /** Extra `MANIFEST.MF` attributes, keyed by section name. */
+    val manifestSections: Map<String, Map<String, String>> get() = emptyMap()
+
+    /**
+     * Paths that are not copied into the runner jar, as
+     * `quarkus.package.jar.user-configured-ignored-entries`. A value in the module's configuration wins.
+     */
+    val ignoredEntries: List<String> get() = emptyList()
+
+    /** Delete the output of the previous build before augmenting, so a changed package type leaves nothing behind. */
+    val cleanupBuildOutput: Boolean get() = true
+
     /**
      * Anchored regular expressions over property names. Their values take part in the up-to-date check of
      * `quarkusBuild` and `quarkusNative`. A pattern that matches no property is looked up as an environment

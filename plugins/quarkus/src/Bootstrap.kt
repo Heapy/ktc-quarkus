@@ -52,6 +52,8 @@ internal class QuarkusApplication(
             platformProperties = applicationModel.platformProperties,
             buildProperties = settings.buildProperties,
             forcedProperties = forcedProperties,
+            taskProperties = manifestProperties(settings),
+            defaultProperties = ignoredEntriesProperties(settings),
             applicationName = moduleName,
             applicationVersion = settings.version,
             baseName = settings.finalName ?: moduleName,

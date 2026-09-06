@@ -93,6 +93,11 @@ Output goes to `build/tasks/_app_quarkusBuild@quarkus/`:
 | `platformBom`     | derived             | `groupId:artifactId:version` of the platform BOM used for the deployment graph. Defaults to `io.quarkus:quarkus-bom` at the Quarkus version found on the runtime classpath |
 | `finalName`       | module name         | Base name of the runner jar and the native binary, also `quarkus.build.base-name` |
 | `buildProperties` | empty               | Extra build-time Quarkus configuration. Only `quarkus.*` keys reach augmentation |
+| `skip`            | `false`             | Skip augmentation without removing the plugin. Falls back to the `quarkus.build.skip` system property |
+| `manifestEntries` | empty               | Extra attributes of the main section of `MANIFEST.MF`                   |
+| `manifestSections`| empty               | Extra `MANIFEST.MF` attributes, keyed by section name                   |
+| `ignoredEntries`  | empty               | Paths kept out of the runner jar. A value in `application.properties` wins |
+| `cleanupBuildOutput` | `true`           | Delete the previous output before augmenting, so a changed package type leaves nothing behind |
 | `cachingRelevantProperties` | `quarkus[.].*`, `platform[.]quarkus[.].*` | Anchored regular expressions over property names whose values take part in the up-to-date check of `quarkusBuild` and `quarkusNative`. A pattern that matches no property is looked up as an environment variable |
 | `containerBuild`  | `true`              | Run `native-image` inside the Mandrel builder container                 |
 | `run`             | see below           | Options for `quarkusRun`                                                |
@@ -150,6 +155,13 @@ plugins:
     containerBuild: false
     buildProperties:
       quarkus.package.jar.type: uber-jar
+    manifestEntries:
+      Built-By: ktc-quarkus
+    manifestSections:
+      Extras:
+        Note: hello
+    ignoredEntries:
+      - META-INF/nothing
     image:
       builder: jib
     deploy:

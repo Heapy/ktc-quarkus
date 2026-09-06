@@ -25,10 +25,11 @@ private const val APPLICATION_VERSION = "quarkus.application.version"
 
 /**
  * Config source ordinals, mirroring `io.quarkus.gradle.tasks.EffectiveConfig`:
- * 600 forced, 400 system properties, 300 environment, 290 build properties,
+ * 600 forced, 500 task properties, 400 system properties, 300 environment, 290 build properties,
  * 265/255 YAML, 260/250 `application.properties`, 0 platform properties, then default values.
  */
 private const val FORCED_ORDINAL = 600
+private const val TASK_PROPERTIES_ORDINAL = 500
 private const val BUILD_PROPERTIES_ORDINAL = 290
 private const val PLATFORM_ORDINAL = 0
 
@@ -102,12 +103,15 @@ internal fun resolveEffectiveConfig(
     platformProperties: Map<String, String>,
     buildProperties: Map<String, String>,
     forcedProperties: Map<String, String>,
+    taskProperties: Map<String, String> = emptyMap(),
+    defaultProperties: Map<String, String> = emptyMap(),
     applicationName: String,
     applicationVersion: String,
     baseName: String,
     profile: String,
 ): EffectiveConfig {
     val forced = PropertiesConfigSource(forcedProperties, "forcedProperties", FORCED_ORDINAL)
+    val task = PropertiesConfigSource(taskProperties, "taskProperties", TASK_PROPERTIES_ORDINAL)
     val build = PropertiesConfigSource(
         buildProperties + (BUILD_BASE_NAME to baseName),
         "quarkusBuildProperties",
@@ -124,13 +128,16 @@ internal fun resolveEffectiveConfig(
         .forClassLoader(resourceClassLoader(resourceDirectories))
         .addDefaultInterceptors()
         .withSources(forced)
+        .withSources(task)
         .addSystemSources()
         .withSources(build)
         .withSources(YamlConfigSourceLoader.InFileSystem())
         .withSources(YamlConfigSourceLoader.InClassPath())
         .addPropertiesSources()
         .withSources(platform)
-        .withDefaultValues(mapOf(APPLICATION_NAME to applicationName, APPLICATION_VERSION to applicationVersion))
+        .withDefaultValues(
+            defaultProperties + mapOf(APPLICATION_NAME to applicationName, APPLICATION_VERSION to applicationVersion)
+        )
         .withProfile(profile)
         .build()
 
@@ -140,6 +147,7 @@ internal fun resolveEffectiveConfig(
         baseName = baseName,
         propagatedSources = setOf(
             forced.name,
+            task.name,
             build.name,
             platform.name,
             SysPropConfigSource.NAME,
