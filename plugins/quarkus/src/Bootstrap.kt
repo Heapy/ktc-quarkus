@@ -2,6 +2,7 @@ package io.heapy.ktc.quarkus
 
 import io.quarkus.bootstrap.app.CuratedApplication
 import io.quarkus.bootstrap.app.QuarkusBootstrap
+import io.quarkus.bootstrap.model.ApplicationModel
 import io.quarkus.bootstrap.resolver.BootstrapAppModelResolver
 import io.quarkus.bootstrap.resolver.maven.BootstrapMavenContext
 import io.quarkus.bootstrap.resolver.maven.MavenArtifactResolver
@@ -23,7 +24,44 @@ import java.nio.file.StandardCopyOption
 import java.util.Properties
 import java.util.zip.ZipFile
 
-internal fun bootstrapQuarkus(
+/**
+ * A resolved application model that can be bootstrapped several times. `quarkusDeploy` asks the extensions which
+ * deployers they support before it knows which properties to force, and Quarkus bakes the build system properties
+ * into the bootstrap, so the second bootstrap has to reuse the model of the first one.
+ */
+internal class QuarkusApplication(
+    private val applicationModel: ApplicationModel,
+    private val applicationRoots: PathList,
+    private val moduleDir: Path,
+    private val outputDir: Path,
+    private val moduleName: String,
+    private val settings: QuarkusSettings,
+    private val quarkusVersion: String,
+    val artifactIds: Set<String>,
+) {
+    fun bootstrap(
+        mode: QuarkusBootstrap.Mode,
+        targetDirectory: Path = outputDir,
+        extraBuildProperties: Map<String, String> = emptyMap(),
+    ): CuratedApplication {
+        println("Bootstrapping '$moduleName' with Quarkus $quarkusVersion in $mode mode")
+
+        return QuarkusBootstrap.builder()
+            .setExistingModel(applicationModel)
+            .setApplicationRoot(applicationRoots)
+            .setProjectRoot(moduleDir)
+            .setTargetDirectory(targetDirectory)
+            .setBaseName(moduleName)
+            .setBaseClassLoader(QuarkusBootstrap::class.java.classLoader)
+            .setIsolateDeployment(true)
+            .setMode(mode)
+            .setBuildSystemProperties(buildSystemProperties(moduleName, settings, extraBuildProperties))
+            .build()
+            .bootstrap()
+    }
+}
+
+internal fun resolveApplication(
     classes: CompilationArtifact,
     resources: ModuleSources,
     runtimeClasspath: Classpath,
@@ -31,10 +69,7 @@ internal fun bootstrapQuarkus(
     outputDir: Path,
     moduleName: String,
     settings: QuarkusSettings,
-    mode: QuarkusBootstrap.Mode,
-    targetDirectory: Path = outputDir,
-    extraBuildProperties: Map<String, String> = emptyMap(),
-): CuratedApplication {
+): QuarkusApplication {
     val classpath = readClasspath(runtimeClasspath, moduleName)
     val applicationSources = applicationSources(moduleDir, classes.artifact, outputDir, classpath.localModules)
     val resourceSources = resources.sourceDirectories.map { SourceDir.of(it, it) }
@@ -69,22 +104,22 @@ internal fun bootstrapQuarkus(
     val mavenConfig = BootstrapMavenContext.config()
     mavenConfig.setWorkspaceDiscovery(false)
     val resolver = MavenArtifactResolver(BootstrapMavenContext(mavenConfig))
-    val applicationModel = BootstrapAppModelResolver(resolver).resolveModel(module)
 
-    println("Bootstrapping '$moduleName' with Quarkus $quarkusVersion in $mode mode")
+    return QuarkusApplication(
+        applicationModel = BootstrapAppModelResolver(resolver).resolveModel(module),
+        applicationRoots = PathList.from((applicationSources + resourceSources).map { it.outputDir }),
+        moduleDir = moduleDir,
+        outputDir = outputDir,
+        moduleName = moduleName,
+        settings = settings,
+        quarkusVersion = quarkusVersion,
+        artifactIds = dependencies.mapTo(mutableSetOf()) { it.artifactId },
+    )
+}
 
-    return QuarkusBootstrap.builder()
-        .setExistingModel(applicationModel)
-        .setApplicationRoot(PathList.from((applicationSources + resourceSources).map { it.outputDir }))
-        .setProjectRoot(moduleDir)
-        .setTargetDirectory(targetDirectory)
-        .setBaseName(moduleName)
-        .setBaseClassLoader(QuarkusBootstrap::class.java.classLoader)
-        .setIsolateDeployment(true)
-        .setMode(mode)
-        .setBuildSystemProperties(buildSystemProperties(moduleName, settings, extraBuildProperties))
-        .build()
-        .bootstrap()
+internal fun CuratedApplication.buildProductionApplication() {
+    val result = createAugmentor().createProductionApplication()
+    println("Quarkus application: ${result.nativeResult ?: result.jar?.path}")
 }
 
 private fun buildSystemProperties(

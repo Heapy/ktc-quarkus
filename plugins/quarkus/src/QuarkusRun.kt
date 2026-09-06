@@ -31,7 +31,7 @@ fun quarkusRun(
     val run = settings.run
     val target = run.target ?: System.getProperty("quarkus.run.target")
 
-    bootstrapQuarkus(
+    resolveApplication(
         classes = classes,
         resources = resources,
         runtimeClasspath = runtimeClasspath,
@@ -39,6 +39,7 @@ fun quarkusRun(
         outputDir = outputDir,
         moduleName = moduleName,
         settings = settings,
+    ).bootstrap(
         mode = QuarkusBootstrap.Mode.RUN,
         targetDirectory = packagedApplication,
     ).use { application ->

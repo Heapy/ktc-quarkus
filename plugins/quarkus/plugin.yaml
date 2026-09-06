@@ -32,7 +32,42 @@ tasks:
       moduleName: ${module.name}
       settings: ${pluginSettings}
 
+  quarkusImageBuild:
+    action: !io.heapy.ktc.quarkus.quarkusImage
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+      push: false
+
+  quarkusImagePush:
+    action: !io.heapy.ktc.quarkus.quarkusImage
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+      push: true
+
+  quarkusDeploy:
+    action: !io.heapy.ktc.quarkus.quarkusDeploy
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+
 commands:
   - quarkusBuild
   - quarkusNative
   - quarkusRun
+  - quarkusImageBuild
+  - quarkusImagePush
+  - quarkusDeploy

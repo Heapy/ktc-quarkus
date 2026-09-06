@@ -19,6 +19,10 @@ interface QuarkusSettings {
     val containerBuild: Boolean get() = true
 
     val run: QuarkusRunSettings
+
+    val image: QuarkusImageSettings
+
+    val deploy: QuarkusDeploySettings
 }
 
 @Configurable
@@ -46,4 +50,36 @@ interface QuarkusRunSettings {
      * Falls back to the `quarkus.run.target` system property.
      */
     val target: String?
+}
+
+@Configurable
+interface QuarkusImageSettings {
+    /**
+     * Which extension builds the container image: `docker`, `podman`, `jib`, `buildpack` or `openshift`.
+     * Defaults to the container-image extension on the runtime classpath, then to `docker`.
+     * Falls back to the `quarkus.container-image.builder` system property.
+     */
+    val builder: String?
+}
+
+@Configurable
+interface QuarkusDeploySettings {
+    /**
+     * Which extension-provided deploy command to run when several extensions declare one.
+     * Falls back to the `quarkus.deploy.target` system property.
+     */
+    val target: String?
+
+    /**
+     * Which deployer to enable when no extension declares a deploy command:
+     * `kubernetes`, `minikube`, `kind`, `knative` or `openshift`.
+     * Defaults to the deployer extension on the runtime classpath, then to `kubernetes`.
+     */
+    val deployer: String?
+
+    /** Build the container image as part of the deployment. */
+    val imageBuild: Boolean get() = false
+
+    /** Which extension builds that image. Implies `imageBuild`. */
+    val imageBuilder: String?
 }

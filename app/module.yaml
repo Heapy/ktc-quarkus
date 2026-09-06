@@ -4,6 +4,7 @@ dependencies:
   - bom: io.quarkus.platform:quarkus-bom:3.39.2
   - io.quarkus:quarkus-rest
   - io.quarkus:quarkus-kotlin
+  - io.quarkus:quarkus-container-image-jib
   - //lib
 
 settings:

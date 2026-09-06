@@ -29,7 +29,7 @@ fun quarkusBuild(
         emptyMap()
     }
 
-    bootstrapQuarkus(
+    resolveApplication(
         classes = classes,
         resources = resources,
         runtimeClasspath = runtimeClasspath,
@@ -37,11 +37,10 @@ fun quarkusBuild(
         outputDir = outputDir,
         moduleName = moduleName,
         settings = settings,
+    ).bootstrap(
         mode = QuarkusBootstrap.Mode.PROD,
         extraBuildProperties = nativeProperties,
     ).use { application ->
-        val result = application.createAugmentor().createProductionApplication()
-        val artifact = result.nativeResult ?: result.jar?.path
-        println("Quarkus application: $artifact")
+        application.buildProductionApplication()
     }
 }

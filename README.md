@@ -55,10 +55,16 @@ The `quarkus` all-open preset is a toolchain built-in. Without it, a bean in a n
 Build it:
 
 ```shell
-./kotlin do quarkusBuild -m app     # JVM fast-jar
-./kotlin do quarkusNative -m app    # native executable
-./kotlin do quarkusRun -m app       # build, then run the packaged application
+./kotlin do quarkusBuild -m app       # JVM fast-jar
+./kotlin do quarkusNative -m app      # native executable
+./kotlin do quarkusRun -m app         # build, then run the packaged application
+./kotlin do quarkusImageBuild -m app  # container image
+./kotlin do quarkusImagePush -m app   # container image, then push it
+./kotlin do quarkusDeploy -m app      # deploy to Kubernetes, OpenShift, minikube or kind
 ```
+
+`quarkusImageBuild` needs a `quarkus-container-image-*` extension, and `quarkusDeploy` needs a deployer
+extension such as `quarkus-kubernetes`.
 
 Output goes to `build/tasks/_app_quarkusBuild@quarkus/`:
 
@@ -75,6 +81,8 @@ Output goes to `build/tasks/_app_quarkusBuild@quarkus/`:
 | `buildProperties` | empty               | Extra build-time Quarkus configuration                                  |
 | `containerBuild`  | `true`              | Run `native-image` inside the Mandrel builder container                 |
 | `run`             | see below           | Options for `quarkusRun`                                                |
+| `image`           | see below           | Options for `quarkusImageBuild` and `quarkusImagePush`                  |
+| `deploy`          | see below           | Options for `quarkusDeploy`                                             |
 
 ### `run`
 
@@ -87,6 +95,21 @@ Output goes to `build/tasks/_app_quarkusBuild@quarkus/`:
 | `workingDirectory` | module root | Working directory, relative to the module root. An extension that names its own directory wins |
 | `target`           | derived | Which run command to use when several extensions provide one. Falls back to the `quarkus.run.target` system property |
 
+### `image`
+
+| Setting   | Default | Meaning                                                                                          |
+|-----------|---------|--------------------------------------------------------------------------------------------------|
+| `builder` | derived | `docker`, `podman`, `jib`, `buildpack` or `openshift`. Defaults to the container-image extension on the runtime classpath, then `docker`. Falls back to the `quarkus.container-image.builder` system property |
+
+### `deploy`
+
+| Setting        | Default | Meaning                                                                                     |
+|----------------|---------|-----------------------------------------------------------------------------------------------|
+| `target`       | derived | Which extension-provided deploy command to run when several extensions declare one. Falls back to the `quarkus.deploy.target` system property |
+| `deployer`     | derived | `kubernetes`, `minikube`, `kind`, `knative` or `openshift`. Used when no extension declares a deploy command. Defaults to the deployer extension on the runtime classpath, then `kubernetes` |
+| `imageBuild`   | `false` | Build the container image as part of the deployment                                          |
+| `imageBuilder` | none    | Which extension builds that image. Implies `imageBuild`                                      |
+
 ```yaml
 plugins:
   quarkus:
@@ -94,6 +117,11 @@ plugins:
     containerBuild: false
     buildProperties:
       quarkus.package.jar.type: uber-jar
+    image:
+      builder: jib
+    deploy:
+      deployer: minikube
+      imageBuild: true
 ```
 
 ## How it works
@@ -115,6 +143,14 @@ plugins:
 injected into the launch command. The task reads the packaged application produced by `quarkusBuild`, so the
 toolchain runs `quarkusBuild` first. `Ctrl-C` stops the launched process.
 
+`quarkusImageBuild` and `quarkusImagePush` are the same production build with `quarkus.container-image.*` forced,
+so the container-image extension does the work during augmentation.
+
+`quarkusDeploy` bootstraps once and asks the extensions whether any of them declares a deploy command. If one
+does, it runs that command. If none does — which is still the case for Kubernetes and OpenShift — it bootstraps a
+second time with `quarkus.<deployer>.deploy` forced and runs a normal production build, which is what those
+extensions hook into. Both bootstraps share one resolved application model.
+
 Deployment-time artifacts are resolved by Quarkus itself into the regular local Maven repository
 (`~/.m2/repository`).
 
@@ -123,6 +159,13 @@ Deployment-time artifacts are resolved by Quarkus itself into the regular local 
 * A classpath entry that is neither a Maven artifact nor a module JAR is reported and skipped.
 * Native builds need Docker or Podman, unless `containerBuild` is set to `false` and a local GraalVM is on
   `PATH`.
+* `jib` is the only container-image builder that works. Quarkus looks for project directories by walking up from
+  the build directory in search of a `src/main` directory, and a Kotlin Toolchain module has `src` and `resources`
+  instead. `docker` and `podman` then fail with "Unable to find root of Dockerfile files"
+  (`quarkus.docker.dockerfile-jvm-path` does not help, because the same lookup decides the build context),
+  `buildpack` with "Buildpack build unable to determine project dir", and `openshift` with an NPE under its
+  `docker` build strategy. The sample application depends on `io.quarkus:quarkus-container-image-jib` for that
+  reason.
 * The toolchain ignores Maven dependency exclusions
   ([KTC-5843](https://youtrack.jetbrains.com/issue/KTC-5843)), so the plugin classpath mixes maven-resolver 2.x with
   a 1.9.x-era wiring layer. The plugin turns off the two remote repository filters that break under that mix.

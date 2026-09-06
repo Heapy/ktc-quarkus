@@ -5,7 +5,8 @@ What the Quarkus Maven plugin (`devtools/maven`, 32 goals) and the Quarkus Gradl
 in `plugins/quarkus` should implement.
 
 Baseline: KTC `0.12.0`, Quarkus `3.39.2`, plugin source read at Quarkus commit `e1c73424`.
-Today the KTC plugin implements two tasks: `quarkusBuild` and `quarkusNative`.
+Today the KTC plugin implements six tasks: `quarkusBuild`, `quarkusNative`, `quarkusRun`, `quarkusImageBuild`,
+`quarkusImagePush` and `quarkusDeploy`.
 
 Status values used below:
 
@@ -22,9 +23,9 @@ Status values used below:
 | Native executable | `build` + `quarkus.native.enabled` | `buildNative` | done | same, `quarkus.native.*` build properties |
 | Effective build configuration | `track-config-changes` | `quarkusShowEffectiveConfig` | **todo** | `EffectiveConfig`, `SmallRyeConfig` |
 | Run the packaged application | `run` | `quarkusRun` | done | `AugmentAction.performCustomBuild(StartDevServicesAndRunCommandHandler)` |
-| Container image build | `image-build` | `imageBuild` | **todo** | forces `quarkus.container-image.build` |
-| Container image push | `image-push` | `imagePush` | **todo** | forces `quarkus.container-image.push` |
-| Deploy (k8s / openshift / minikube / kind / knative) | `deploy` | `deploy` | **todo** | `DeployCommandDeclarationHandler`, `DeployCommandHandler` |
+| Container image build | `image-build` | `imageBuild` | done | forces `quarkus.container-image.build` |
+| Container image push | `image-push` | `imagePush` | done | forces `quarkus.container-image.push` |
+| Deploy (k8s / openshift / minikube / kind / knative) | `deploy` | `deploy` | done | `DeployCommandDeclarationHandler`, `DeployCommandHandler` |
 | Local module dependencies in the app model | `QuarkusMavenWorkspaceBuilder` | `ApplicationDeploymentClasspathBuilder` | done | `WorkspaceModule`, `ArtifactSources` |
 | Incremental up-to-date check on configuration | `track-config-changes` | `quarkusShowEffectiveConfig` | **todo** | config dump file compared between builds |
 | Code generation, main sources | `generate-code` | `quarkusGenerateCode` | **blocked** | `CodeGenerator.initAndRun(...)` |
@@ -52,7 +53,7 @@ Status values used below:
 
 ## 2. Settings parity
 
-`QuarkusSettings` has 5 properties today. Maven and Gradle expose the following that KTC does not.
+`QuarkusSettings` has 8 properties today. Maven and Gradle expose the following that KTC does not.
 
 | Setting | Maven | Gradle | Effect | Priority |
 |---|---|---|---|---|
@@ -67,6 +68,8 @@ Status values used below:
 | `codeGenerationProviders` | — | `codeGenerationProviders` | restrict which generators run | with §4.2 |
 | `nativeBuilderImage` | via `quarkus.native.builder-image` | same | already reachable through `buildProperties` | none |
 | `jvmArgs`, `workingDirectory` | `run` goal | `quarkusRun` | for `quarkusRun` | with §3.3 |
+| `builderName` | `quarkus.container-image.builder` | `ImageCheckRequirementsTask` | for `quarkusImageBuild` | done, as `image.builder` |
+| `deployer`, `image-build`, `image-builder` | `deploy` goal | `deploy` | for `quarkusDeploy` | done, as `deploy.*` |
 | dev-mode knobs (`debug`, `suspend`, `debugHost`, `debugPort`, `jvmArgs`, `applicationArgs`, `compilerOptions`, `openJavaLang`, `tests`) | `dev` goal | `quarkusDev` | for dev mode | with §3.8 |
 
 Maven-only settings that have no KTC meaning: `skipOriginalJarRename`, `attachRunnerAsMainArtifact`, `attachSboms`,
@@ -92,6 +95,54 @@ Both plugins also check up front that the module depends on the deployer extensi
 
 Do. Three commands that reuse the existing `quarkusBuild` action with extra forced properties, plus the deployer
 discovery step for `deploy`. Cheapest wins in this document.
+
+Done. `quarkusImageBuild`, `quarkusImagePush` and `quarkusDeploy`.
+
+`quarkusImage` is one action with a `push` flag, the way `quarkusBuild` carries `nativeImage`. It forces
+`quarkus.container-image.build`, `quarkus.container-image.builder` and, for a push,
+`quarkus.container-image.push`. The builder is chosen the way `ImageCheckRequirementsTask` chooses it:
+`settings.image.builder`, then the `quarkus.container-image.builder` system property, then the container-image
+extension on the runtime classpath, then `docker`. `quarkus-openshift` counts as the `openshift` builder without
+the `quarkus-container-image-` prefix. A builder without its extension fails before augmentation starts.
+
+`quarkusDeploy` bootstraps once and runs `DeployCommandDeclarationHandler`. When an extension declares a deploy
+command it picks one (`settings.deploy.target`, then the `quarkus.deploy.target` system property, then the single
+entry) and runs `DeployCommandHandler` on the same application. When none does — the Kubernetes and OpenShift
+extensions still deploy through configuration — it bootstraps a second time with
+`quarkus.<deployer>.deploy=true` plus `quarkus.container-image.build`, and runs a normal production build.
+`settings.deploy.deployer` names the deployer; otherwise it is the first one enabled in `settings.buildProperties`,
+then the deployer extension on the runtime classpath, then `kubernetes`.
+`quarkus.container-image.builder` is forced only when `settings.deploy.imageBuilder` names one, as in Gradle.
+
+The two bootstraps share one resolved `ApplicationModel`, because Quarkus bakes the build system properties into
+`QuarkusBootstrap` and the forced properties are only known after the first custom build.
+
+Not copied from Gradle: `Deploy.requiresOneOf` rejects a Kubernetes deployment whose only container-image
+extension is `podman` or `openshift`, and with `imageBuild` and no named builder it demands
+`quarkus-container-image-docker` even when `quarkus-container-image-jib` is present. Both are false rejections.
+The cost of dropping the check: `quarkusDeploy` with `imageBuild` and no named builder reports a missing
+container-image extension from inside augmentation instead of before it. `quarkusImageBuild` always reports it
+first, because it always selects a builder.
+
+Verified: `quarkusImageBuild` with `quarkus-container-image-jib` produces a real image
+(`<user>/app:1.0.0-SNAPSHOT` in the local Docker daemon), and `quarkusDeploy` with `quarkus-kubernetes` reaches
+the Kubernetes deployer, which then fails on the missing cluster. `quarkusImagePush` is not verified — it needs a
+registry.
+
+`jib` is the only container-image builder that works in a KTC layout. `PathsUtil.findMainSourcesRoot` walks up
+from the task output directory looking for a `src/main` directory, and a KTC module has `src` and `resources`
+instead, so the helper returns null. What each builder does with that:
+
+* `docker` and `podman` share `CommonProcessor`, which reports "Unable to find root of Dockerfile files".
+  `quarkus.docker.dockerfile-jvm-path` does not help: `ProvidedDockerfile.get` calls the same helper and fails with
+  "Unable to determine project root".
+* `buildpack` throws "Buildpack build unable to determine project dir".
+* `openshift` dereferences the null result, so it fails with an NPE under the `docker` build strategy. Its default
+  `binary` strategy does not reach that code.
+* `jib` uses the helper only for the optional `src/main/jib` extra-files layer and returns early when it is null.
+
+A one-line Quarkus change — fall back to the bootstrap project root when no `src/main` is found — would close this,
+the same shape as the `PathTestHelper` request in §4.1.
 
 ### 3.2 Use compiled classes instead of unpacking the jar
 
@@ -424,11 +475,11 @@ that actually break today, nothing more.
 
 ## 5. Recommended order
 
-1. §3.1 image build / push / deploy — thin commands, immediate value.
-2. §3.2 use `module.classes` — removes the unpack step, prerequisite for dev mode.
-3. §3.3 `quarkusRun` — small, high value.
-4. §3.4 effective configuration — unblocks correct naming and §3.7.
-5. §3.5 local module dependencies — removes the documented limitation.
+1. ~~§3.1 image build / push / deploy~~ — done.
+2. ~~§3.2 use `module.classes`~~ — done.
+3. ~~§3.3 `quarkusRun`~~ — done.
+4. §3.4 effective configuration — unblocks correct naming and §3.7. **Next.**
+5. ~~§3.5 local module dependencies~~ — done.
 6. §3.7 incrementality.
 7. File the two remaining KTC feature requests (§3.6 resolved dependencies without the module's own output; §4.1
    test-JVM properties and test-scope references), and ship the `quarkusTestModel` workaround from §4.1.
