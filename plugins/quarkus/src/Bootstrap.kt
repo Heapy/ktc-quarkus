@@ -5,6 +5,7 @@ import io.quarkus.bootstrap.app.QuarkusBootstrap
 import io.quarkus.bootstrap.model.ApplicationModel
 import io.quarkus.bootstrap.resolver.BootstrapAppModelResolver
 import io.quarkus.bootstrap.resolver.maven.BootstrapMavenContext
+import io.quarkus.bootstrap.resolver.maven.DependencyLoggingConfig
 import io.quarkus.bootstrap.resolver.maven.MavenArtifactResolver
 import io.quarkus.bootstrap.workspace.ArtifactSources
 import io.quarkus.bootstrap.workspace.DefaultArtifactSources
@@ -92,6 +93,8 @@ internal fun resolveApplication(
     moduleName: String,
     settings: QuarkusSettings,
     mode: QuarkusBootstrap.Mode = QuarkusBootstrap.Mode.PROD,
+    runtimeOnly: Boolean = false,
+    dependencyLogging: DependencyLoggingConfig? = null,
 ): QuarkusApplication {
     val classpath = readClasspath(runtimeClasspath, moduleName)
     val applicationSources = applicationSources(moduleDir, classes.artifact, outputDir, classpath.localModules)
@@ -132,7 +135,10 @@ internal fun resolveApplication(
     val devMode = mode == QuarkusBootstrap.Mode.DEV
     val modelResolver = BootstrapAppModelResolver(resolver)
         .setDevMode(devMode)
+        .setTest(mode == QuarkusBootstrap.Mode.TEST)
         .setCollectReloadableDependencies(devMode)
+        .setRuntimeModelOnly(runtimeOnly)
+        .also { it.setDepLogConfig(dependencyLogging) }
 
     return QuarkusApplication(
         applicationModel = modelResolver.resolveModel(module),

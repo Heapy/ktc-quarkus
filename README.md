@@ -74,6 +74,11 @@ Build it:
 ./kotlin do quarkusImagePush -m app   # container image, then push it
 ./kotlin do quarkusDeploy -m app      # deploy to Kubernetes, OpenShift, minikube or kind
 ./kotlin do quarkusShowEffectiveConfig -m app   # print the configuration the build will use
+./kotlin do quarkusInfo -m app              # platform BOMs and extensions
+./kotlin do quarkusDependencyTree -m app    # dependency graph, deployment artifacts included
+./kotlin do quarkusDependencyList -m app    # the same graph, flat and sorted
+./kotlin do quarkusDependencySbom -m app    # CycloneDX SBOM
+./kotlin do quarkusGoOffline -m app         # download everything a later build needs
 ```
 
 `quarkusImageBuild` needs a `quarkus-container-image-*` extension, and `quarkusDeploy` needs a deployer
@@ -213,6 +218,31 @@ Quarkus recompiles into those, so `./kotlin build` and `./kotlin test` are unaff
 sources of the module and of its local modules are recompiled and live-reloaded; the annotations of
 `settings.kotlin.allOpen` are passed to that compiler.
 
+`quarkusInfo`, `quarkusDependencyTree`, `quarkusDependencyList`, `quarkusDependencySbom` and `quarkusGoOffline`
+only read the resolved model, so none of them augments the application. `quarkusInfo` reads the platform BOMs and
+the extensions from the model rather than from a `QuarkusProject`, which would need an extension manager that can
+rewrite `module.yaml`. `quarkusGoOffline` resolves the model in all three modes, so a later build needs no network.
+
+Their switches travel as system properties, because `plugin.yaml` arguments are static:
+
+| Property | Values | Applies to |
+|---|---|---|
+| `quarkus.mode` | `prod` (default), `test`, `dev` | all five |
+| `quarkus.dependency.verbose` | `true` | tree, list |
+| `quarkus.dependency.graph` | `true` | tree |
+| `quarkus.dependency.runtime-only` | `true` | tree |
+| `quarkus.dependency.flags` | comma-separated flag names, e.g. `direct,runtime-cp` | list |
+| `quarkus.dependency.sbom.format` | `json` (default), `xml` | sbom |
+| `quarkus.dependency.sbom.schema-version` | e.g. `1.5` | sbom |
+| `quarkus.dependency.sbom.pretty-print` | `true` | sbom |
+| `quarkus.dependency.sbom.include-license-text` | `true` | sbom |
+| `quarkus.dependency.sbom.runtime-only` | `true` | sbom |
+| `quarkus.dependency.sbom.include-quarkus-component-scope` | `true` | sbom |
+
+```shell
+KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.mode=test -Dquarkus.dependency.flags=reloadable" ./kotlin do quarkusDependencyList -m app
+```
+
 `quarkusImageBuild` and `quarkusImagePush` are the same production build with `quarkus.container-image.*` forced,
 so the container-image extension does the work during augmentation.
 
@@ -227,6 +257,8 @@ Deployment-time artifacts are resolved by Quarkus itself into the regular local 
 ## Limitations
 
 * A classpath entry that is neither a Maven artifact nor a module JAR is reported and skipped.
+* The SBOM carries no licence or description for the application component itself. Those come from a component's
+  POM, and the toolchain publishes none for a module.
 * Dev mode does not watch `module.yaml`. A change there needs a restart.
 * Dev mode restarts the whole application when a local module changes; local modules are not separate reloadable
   archives.
@@ -256,9 +288,10 @@ Deployment-time artifacts are resolved by Quarkus itself into the regular local 
 
 * The plugin pins `quarkus-bootstrap-core` in `plugins/quarkus/module.yaml`. Keep that version equal to the
   Quarkus version the application depends on. The plugin prints a warning when the two differ.
-* The same file pins `quarkus-core-deployment`, which `quarkusDev` needs, and `smallrye-config-core` and
-  `smallrye-config-source-yaml`. Keep the first equal to the Quarkus version and the other two equal to the
-  `smallrye-config.version` property of `quarkus-bom` for that release.
+* The same file pins `quarkus-core-deployment`, which `quarkusDev` needs, `quarkus-cyclonedx-generator`, which
+  `quarkusDependencySbom` needs, and `smallrye-config-core` and `smallrye-config-source-yaml`. Keep the first two
+  equal to the Quarkus version and the other two equal to the `smallrye-config.version` property of `quarkus-bom`
+  for that release.
 * With `containerBuild: true` (the default) on macOS or Windows, the native executable is a Linux binary. Run it
   in a container or on a Linux host.
 

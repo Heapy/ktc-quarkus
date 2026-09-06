@@ -80,6 +80,56 @@ tasks:
       moduleName: ${module.name}
       settings: ${pluginSettings}
 
+  quarkusDependencyTree:
+    action: !io.heapy.ktc.quarkus.quarkusDependencyTree
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+
+  quarkusDependencyList:
+    action: !io.heapy.ktc.quarkus.quarkusDependencyList
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+
+  quarkusInfo:
+    action: !io.heapy.ktc.quarkus.quarkusInfo
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+
+  quarkusGoOffline:
+    action: !io.heapy.ktc.quarkus.quarkusGoOffline
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+
+  quarkusDependencySbom:
+    action: !io.heapy.ktc.quarkus.quarkusDependencySbom
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+
   quarkusEffectiveConfig:
     action: !io.heapy.ktc.quarkus.quarkusEffectiveConfig
       resources: ${module.resources}
@@ -117,6 +167,11 @@ commands:
   - quarkusImagePush
   - quarkusDeploy
   - quarkusShowEffectiveConfig
+  - quarkusInfo
+  - quarkusDependencyTree
+  - quarkusDependencyList
+  - quarkusGoOffline
+  - quarkusDependencySbom
 
 generated:
   resources:

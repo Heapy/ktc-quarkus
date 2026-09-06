@@ -8,6 +8,7 @@ dependencies:
   - io.quarkus:quarkus-bootstrap-core:3.39.2
   - io.quarkus:quarkus-bootstrap-maven-resolver:3.39.2
   - io.quarkus:quarkus-core-deployment:3.39.2
+  - io.quarkus:quarkus-cyclonedx-generator:3.39.2
   - io.smallrye.config:smallrye-config-core:3.18.2
   - io.smallrye.config:smallrye-config-source-yaml:3.18.2
   - org.junit.platform:junit-platform-launcher:6.1.3: compile-only

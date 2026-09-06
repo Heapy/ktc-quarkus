@@ -5,8 +5,9 @@ What the Quarkus Maven plugin (`devtools/maven`, 32 goals) and the Quarkus Gradl
 in `plugins/quarkus` should implement.
 
 Baseline: KTC `0.12.0`, Quarkus `3.39.2`, plugin source read at Quarkus commit `e1c73424`.
-Today the KTC plugin implements eight commands: `quarkusBuild`, `quarkusNative`, `quarkusRun`, `quarkusDev`,
-`quarkusImageBuild`, `quarkusImagePush`, `quarkusDeploy` and `quarkusShowEffectiveConfig`, plus the
+Today the KTC plugin implements thirteen commands: `quarkusBuild`, `quarkusNative`, `quarkusRun`, `quarkusDev`,
+`quarkusImageBuild`, `quarkusImagePush`, `quarkusDeploy`, `quarkusShowEffectiveConfig`, `quarkusInfo`,
+`quarkusDependencyTree`, `quarkusDependencyList`, `quarkusDependencySbom` and `quarkusGoOffline`, plus the
 `quarkusTestModel` and `quarkusEffectiveConfig` tasks that feed them.
 
 Status values used below:
@@ -38,11 +39,11 @@ Status values used below:
 | Dev mode | `dev` | `quarkusDev` | done | `DevModeCommandLineBuilder`, `DevModeMain` |
 | Remote dev mode | `remote-dev` | `quarkusRemoteDev` | todo (after dev mode) | `DevModeCommandLineBuilder.remoteDev(true)` |
 | Cacheable split of deps and app parts | — | `quarkusDependenciesBuild`, `quarkusAppPartsBuild` | optional | `AugmentAction` with restricted output sets |
-| Prefetch every artifact needed offline | `go-offline` | `quarkusGoOffline` | optional | `BootstrapAppModelResolver` |
-| Print platform BOMs and extensions | `info` | `quarkusInfo` | optional | `QuarkusProjectStateMojoBase` |
-| Dependency tree of runtime + deployment | `dependency-tree` | — | optional | `DependencyTreeMojo` |
-| Flat dependency list | `dependency-list` | — | optional | — |
-| SBOM (CycloneDX) | `dependency-sbom` | — | optional | `SbomGenerator` |
+| Prefetch every artifact needed offline | `go-offline` | `quarkusGoOffline` | done | `BootstrapAppModelResolver` |
+| Print platform BOMs and extensions | `info` | `quarkusInfo` | done | `PlatformImports`, `DependencyFlags` |
+| Dependency tree of runtime + deployment | `dependency-tree` | — | done | `DependencyLoggingConfig` |
+| Flat dependency list | `dependency-list` | — | done | `ApplicationModel.getDependencies(flags)` |
+| SBOM (CycloneDX) | `dependency-sbom` | — | done | `CycloneDxSbomGenerator` |
 | Suggest and apply project updates | `update` | `quarkusUpdate` | skip | needs to rewrite the build file |
 | Add / remove / list extensions, categories, platforms | `add-extension(s)`, `remove-extension(s)`, `list-extensions`, `list-categories`, `list-platforms` | same names | skip | needs a `module.yaml`-aware `ExtensionManager` in `devtools-common` |
 | Create a project / extension / JBang script | `create`, `create-extension`, `create-jbang` | — | skip | `kotlin init` territory |
@@ -374,6 +375,34 @@ Local modules do hot-reload after all, because their sources are part of the mai
 are staged into the same tree, so the §3.5 trade-off costs less than expected. They are not separate reloadable
 archives, so a change in one restarts the whole application rather than reloading that module alone.
 
+### 3.9 Diagnostic commands
+
+Five commands that read the model the plugin already resolves. None of them augments, so none needs a bootstrap.
+
+* `quarkusInfo` — the application artifact, the imported platform BOMs, their release info and alignment, and the
+  extensions, split into those the module declares and those other extensions pull in. The Maven goal builds a
+  `QuarkusProject` for this, which needs an `ExtensionManager` able to rewrite the build file; none exists for
+  `module.yaml`, so the same facts are read from `ApplicationModel` and `PlatformImports` instead.
+* `quarkusDependencyTree` — `DependencyLoggingConfig` on `BootstrapAppModelResolver`, which prints the graph while
+  it resolves. Deployment artifacts included, so this is the view `quarkusBuild` works from.
+* `quarkusDependencyList` — the same graph, flattened and sorted.
+* `quarkusDependencySbom` — a CycloneDX SBOM, from `CoreSbomContributionConfig` and `CycloneDxSbomGenerator`.
+* `quarkusGoOffline` — resolves the model in `prod`, `test` and `dev` so a later build needs no network. The Maven
+  goal walks its own workspace for this; resolving once per mode reaches the same artifacts, because it is the
+  deployment graph that the module's runtime classpath cannot cover.
+
+`plugin.yaml` arguments are static, so the switches travel as system properties, the way Maven takes `-D`:
+`quarkus.mode` (`prod`, `test`, `dev`), `quarkus.dependency.verbose`, `quarkus.dependency.graph`,
+`quarkus.dependency.runtime-only`, `quarkus.dependency.flags`, and `quarkus.dependency.sbom.*` for the SBOM.
+
+The SBOM generator resolves each component's POM for licence and description metadata. The application artifact is
+synthetic — the toolchain publishes no POM for a module — so an `EffectiveModelResolver` that returns an empty
+model for it and delegates everything else keeps the root component from failing the whole run. Measured on the
+sample application: 310 components, 309 of them with licences.
+
+`quarkusDependenciesBuild` and `quarkusAppPartsBuild` stay out. They exist to split Gradle's cache entries around
+its own `genDir` copy step, and the toolchain caches a task by its declared inputs instead.
+
 ## 4. Blocked on the toolchain
 
 ### 4.1 `@QuarkusTest` (the biggest gap)
@@ -628,4 +657,5 @@ Transitive versions that come from an artifact's own parent POM are applied corr
    and the two resolution gaps of §4.6. Drafts are in `docs/tickets.md`. §4.5 is filed as KTC-5843.
    `quarkusTestModel` is shipped.
 8. ~~§3.8 dev mode~~ — done.
-9. §4.2 code generation, once §3.6 lands.
+9. ~~§3.9 diagnostic commands~~ — done.
+10. §4.2 code generation, once §3.6 lands.
