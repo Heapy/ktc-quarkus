@@ -30,7 +30,7 @@ Status values used below:
 | Code generation, main sources | `generate-code` | `quarkusGenerateCode` | **blocked** | `CodeGenerator.initAndRun(...)` |
 | Code generation, dev sources | `generate-code` (`launchMode=DEVELOPMENT`) | `quarkusGenerateCodeDev` | blocked | same |
 | Code generation, test sources | `generate-code-tests` | `quarkusGenerateCodeTests` | **blocked** | same |
-| `@QuarkusTest` in the module's own test task | `argLine` injection in `GenerateCodeTestsMojo` | `BeforeTestAction` on `Test` | **blocked** | `BootstrapConstants.SERIALIZED_TEST_APP_MODEL` |
+| `@QuarkusTest` in the module's own test task | `argLine` injection in `GenerateCodeTestsMojo` | `BeforeTestAction` on `Test` | **blocked**, workaround in §4.1 | `BootstrapConstants.SERIALIZED_TEST_APP_MODEL` |
 | Continuous testing | `test` | `quarkusTest` | blocked | depends on the above |
 | Integration tests against the artifact | failsafe + `quarkus-artifact.properties` | `quarkusIntTest`, `testNative` | blocked | depends on the above |
 | Dev mode | `dev` | `quarkusDev` | **todo** (large) | `DevModeCommandLineBuilder`, `DevModeMain` |
@@ -242,43 +242,110 @@ Recommendation: do this last, after §3.1–§3.7 have made the application mode
 
 What Gradle does, in `BeforeTestAction`, on the module's own `Test` task:
 
-* system property `quarkus-internal-test.serialized-app-model.path` = path to the serialized TEST-mode `ApplicationModel`;
-* system properties: every `quarkus.*` value from the effective TEST configuration, plus `quarkus.test.profile`;
-* system property `native.image.path` for native integration tests;
-* environment variable `OUTPUT_SOURCES_DIR`;
-* environment variable `TEST_TO_MAIN_MAPPINGS`.
+* system properties (`task.getSystemProperties()`):
+  * `quarkus-internal-test.serialized-app-model.path` — path to the serialized TEST-mode `ApplicationModel`;
+  * every `quarkus.*` value from the effective TEST configuration, plus `quarkus.test.profile`;
+  * `OUTPUT_SOURCES_DIR` — comma-separated output directories added as application roots;
+  * `native.image.path` for native integration tests;
+* environment (`task.environment(...)`): `TEST_TO_MAIN_MAPPINGS`, and nothing else.
+
+`OUTPUT_SOURCES_DIR` is named like an environment variable but is read with `System.getProperty` in
+`AppMakerHelper` and `IntegrationTestUtil`. `TEST_TO_MAIN_MAPPINGS` is the only value that has to be an
+environment variable.
 
 `TEST_TO_MAIN_MAPPINGS` is a comma-separated list of `<from>:<to>` **path fragments**, not full paths.
-`PathTestHelper.getAppClassLocationForTestLocation` replaces the last occurrence of `<from>` in the test-classes path
-with `<to>`. The KTC `build/artifacts/...` layout is therefore **not** a blocker by itself: the pair
-`jvmTest/kotlin-output:jvm/kotlin-output` maps KTC's test classes onto its main classes.
+`PathTestHelper` reads it with `System.getenv` in a static initializer, into `TEST_TO_MAIN_DIR_FRAGMENTS` and the
+derived `private static final List TEST_DIRS`. Both users of that state matter:
+`getAppClassLocationForTestLocation` replaces the last occurrence of `<from>` with `<to>`, and
+`getTestClassesLocation` throws when the test-classes path contains no known fragment.
 
-Maven does the same by appending to the `argLine` property in `GenerateCodeTestsMojo`, and additionally calls
-`injectTestJvmArgsFromDependencies` so extensions can contribute JVM arguments.
+For KTC the pair is `jvmTest/kotlin-output:jvm/kotlin-output`. It is module-independent, but not
+platform-independent: the built-in fragments are built from `File.separator` and the value is matched with
+`String.contains`, so Windows needs `jvmTest\kotlin-output:jvm\kotlin-output`.
 
 Why it is blocked. A KTC plugin can register tasks and contribute generated sources and resources. It cannot
-contribute system properties, environment variables, or JVM arguments to the module's test run. `settings.jvm.test`
-has `systemProperties`, `extraEnvironment` and `freeJvmArgs`, but only the user can write them in `module.yaml`.
+contribute system properties, environment variables, or JVM arguments to the module's test run.
+`settings.jvm.test` has `systemProperties`, `extraEnvironment` and `freeJvmArgs`, but only the user can write them
+in `module.yaml`. `ModuleDataForPlugin` in `frontend-api-jvm.jar` exposes exactly ten references — `name`,
+`rootDir`, `runtimeClasspath`, `compileClasspath`, `kotlinJavaSources`, `resources`, `jar`, `classes`, `self`,
+`settings` — so a plugin also cannot see the module's test sources, test classes, or test-scope dependencies.
 
-Interim workaround, worth shipping and documenting:
+#### Measured behaviour of the test JVM (KTC 0.12.0, verified in this project)
 
-* add a `quarkusTestModel` command that writes the serialized TEST-mode model to a fixed path under `taskOutputDir`;
-* document the `module.yaml` block the user pastes (verify the exact key spelling against the running toolchain
-  before publishing it):
+* Tests run in a forked JVM started from `junit-platform-console-standalone`. It inherits the environment of the
+  `./kotlin` process, so `TEST_TO_MAIN_MAPPINGS=... ./kotlin test` reaches the test JVM.
+* `./kotlin test --jvm-args="-Dfoo=bar"` reaches the same JVM.
+* Its working directory is the **module** directory, not the project root. Quarkus uses that as `projectRoot`, and
+  `BootstrapAppModelFactory` resolves a relative `quarkus-internal-test.serialized-app-model.path` against it.
+* Test classes are a directory: `build/artifacts/CompiledJvmArtifact/<module>jvmTest/kotlin-output`.
+  Test resources are a second directory, `.../<module>jvmTest/resources-output`.
+* The module's own main classes reach the test classpath as `build/tasks/_<module>_jarJvm/<module>-jvm.jar`, not as
+  `<module>jvm/kotlin-output`. The fragment mapping points at the classes directory, which exists but is not itself
+  on the test classpath. `settings.jvm.runtimeClasspathMode: classes` changes that.
+* A `META-INF/services/org.junit.platform.launcher.LauncherSessionListener` on the test classpath **is**
+  auto-registered, and `System.setProperty` from `launcherSessionOpened` is visible to the tests.
+* `generated.resources` accepts `fragment: { isTest: true }`. The directory is copied into
+  `<module>jvmTest/resources-output`, and `./kotlin show tasks` reports the producing plugin task as a dependency of
+  `:<module>:compileJvmTest`, so `./kotlin test` runs it without a manual `./kotlin do` step.
+
+#### Workaround
+
+Everything except one environment variable can be done from the plugin.
+
+* Add a `quarkusTestModel` task that writes, into `${taskOutputDir}`:
+  * the serialized TEST-mode `ApplicationModel` (`ApplicationModelSerializer.serialize`);
+  * a properties file with the values `BeforeTestAction` would have set as system properties;
+  * a precompiled `LauncherSessionListener` class and its `META-INF/services` entry. The class cannot be a
+    `generated.sources` entry, because compiling it needs `junit-platform-launcher` on the module's test compile
+    classpath and a plugin cannot add dependencies. Ship the bytes from the plugin's own jar instead.
+* Declare the output as a test-scope resource, which also wires the task into `compileJvmTest`:
 
   ```yaml
-  test-settings:
-    jvm:
-      systemProperties:
-        quarkus-internal-test.serialized-app-model.path: <absolute path to app-model.dat>
-      extraEnvironment:
-        TEST_TO_MAIN_MAPPINGS: "jvmTest/kotlin-output:jvm/kotlin-output"
+  generated:
+    resources:
+      - directory: ${tasks.quarkusTestModel.action.outputDir}
+        fragment:
+          isTest: true
   ```
 
-* the user runs `./kotlin do quarkusTestModel -m app` before `./kotlin test`; there is no task dependency between them.
+* At test-session start the listener reads the properties file from the classpath and replays it through
+  `System.setProperty`. Write the listener in Java inside the plugin module, so the class loaded from
+  `resources-output` does not pull the plugin's Kotlin stdlib version into the test JVM.
 
-Proper fix: a KTC feature that lets a plugin contribute test-JVM system properties, environment variables and JVM
-arguments — the same shape as `generated.sources`. File it against `KTC`.
+The listener only covers properties that are read lazily. `quarkus-internal-test.serialized-app-model.path`,
+`OUTPUT_SOURCES_DIR` and the `quarkus.*` values all are. A property read during JVM or launcher bootstrap is not:
+every probe run in this project logged `The LogManager accessed before the "java.util.logging.manager" system
+property was set`, and Quarkus documents that one as a real `-D`. Such properties still need a JVM argument, which
+is the second half of the KTC request.
+
+What stays with the user: one constant line per module, or once in a shared template.
+
+```yaml
+test-settings:
+  jvm:
+    extraEnvironment:
+      TEST_TO_MAIN_MAPPINGS: "jvmTest/kotlin-output:jvm/kotlin-output"
+```
+
+`TEST_TO_MAIN_MAPPINGS=jvmTest/kotlin-output:jvm/kotlin-output ./kotlin test` is the same thing without editing
+`module.yaml`, and CI can export it once.
+
+The environment half cannot be closed in-process. `System.getenv` is immutable, `PathTestHelper` caches the parsed
+value in a `static final` field at class-initialisation time, and writing into `java.lang.ProcessEnvironment` needs
+`--add-opens`, which is the same JVM-argument gap.
+
+End-to-end boot is not demonstrated yet: it waits on `quarkusTestModel` (§5.7). Two open points there — the
+`WorkspaceModule` the plugin builds has no test `ArtifactSources`, and `PathTestHelper.getProjectBuildDir` has not
+been checked against the `build/artifacts/...` layout.
+
+Two ways to remove that last line, in order of cost:
+
+1. Upstream Quarkus: let `PathTestHelper` fall back to `System.getProperty(BootstrapConstants.TEST_TO_MAIN_MAPPINGS)`
+   when the environment variable is absent. One line, and the workaround above becomes complete.
+2. KTC feature request: let a plugin contribute test-JVM system properties, environment variables and JVM arguments,
+   the same shape as `generated.sources`. The same request should add test-scope references
+   (test classes, test resources, test sources, test runtime classpath) to `ModuleDataForPlugin`. File it against
+   `KTC`.
 
 ### 4.2 Code generation (`quarkusGenerateCode`)
 
@@ -323,8 +390,11 @@ Add `settings.codeGenerationInputs` for extra parents.
 ### 4.3 Test-scope generated sources
 
 `generated.sources` in `plugin.yaml` attaches a directory to the module's compilation. Entries accept an optional
-`fragment`, documented for platform fragments; verify whether `fragment: jvmTest` is accepted before assuming
-otherwise. Either way `quarkusGenerateCodeTests` is blocked behind §4.1 and §4.2.
+`fragment`, which is a `FragmentDescriptor` with two keys: `modifier` (the platform qualifier without `@`, empty by
+default, and the shorthand target so `fragment: jvm` works) and `isTest` (`false` by default).
+`fragment: { isTest: true }` is accepted, the directory lands in `<module>jvmTest/kotlin-output` or
+`<module>jvmTest/resources-output`, and the producing task becomes a dependency of `:<module>:compileJvmTest`.
+So the mechanism itself is available; `quarkusGenerateCodeTests` is still blocked behind §4.2.
 
 ### 4.4 Replacing the module's package output
 
@@ -361,6 +431,7 @@ that actually break today, nothing more.
 5. §3.5 local module dependencies — removes the documented limitation.
 6. §3.7 incrementality.
 7. File the two remaining KTC feature requests (§3.6 resolved dependencies without the module's own output; §4.1
-   test-JVM properties), and ship the `quarkusTestModel` workaround. §4.5 is filed as KTC-5843.
+   test-JVM properties and test-scope references), and ship the `quarkusTestModel` workaround from §4.1.
+   Also file the one-line `PathTestHelper` fallback against Quarkus. §4.5 is filed as KTC-5843.
 8. §3.8 dev mode.
 9. §4.2 code generation, once §3.6 lands.
