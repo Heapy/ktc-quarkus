@@ -6,6 +6,7 @@ tasks:
       runtimeClasspath: ${module.runtimeClasspath}
       moduleDir: ${module.rootDir}
       outputDir: ${taskOutputDir}
+      effectiveConfig: ${tasks.quarkusEffectiveConfig.action.configFile}
       moduleName: ${module.name}
       settings: ${pluginSettings}
       nativeImage: false
@@ -17,6 +18,7 @@ tasks:
       runtimeClasspath: ${module.runtimeClasspath}
       moduleDir: ${module.rootDir}
       outputDir: ${taskOutputDir}
+      effectiveConfig: ${tasks.quarkusEffectiveConfig.action.configFile}
       moduleName: ${module.name}
       settings: ${pluginSettings}
       nativeImage: true
@@ -61,6 +63,13 @@ tasks:
       runtimeClasspath: ${module.runtimeClasspath}
       moduleDir: ${module.rootDir}
       outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+
+  quarkusEffectiveConfig:
+    action: !io.heapy.ktc.quarkus.quarkusEffectiveConfig
+      resources: ${module.resources}
+      configFile: ${taskOutputDir}/effective-config.properties
       moduleName: ${module.name}
       settings: ${pluginSettings}
 

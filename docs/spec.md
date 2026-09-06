@@ -5,8 +5,9 @@ What the Quarkus Maven plugin (`devtools/maven`, 32 goals) and the Quarkus Gradl
 in `plugins/quarkus` should implement.
 
 Baseline: KTC `0.12.0`, Quarkus `3.39.2`, plugin source read at Quarkus commit `e1c73424`.
-Today the KTC plugin implements seven tasks: `quarkusBuild`, `quarkusNative`, `quarkusRun`, `quarkusImageBuild`,
-`quarkusImagePush`, `quarkusDeploy` and `quarkusShowEffectiveConfig`.
+Today the KTC plugin implements seven commands: `quarkusBuild`, `quarkusNative`, `quarkusRun`,
+`quarkusImageBuild`, `quarkusImagePush`, `quarkusDeploy` and `quarkusShowEffectiveConfig`, plus the
+`quarkusTestModel` and `quarkusEffectiveConfig` tasks that feed them.
 
 Status values used below:
 
@@ -27,7 +28,7 @@ Status values used below:
 | Container image push | `image-push` | `imagePush` | done | forces `quarkus.container-image.push` |
 | Deploy (k8s / openshift / minikube / kind / knative) | `deploy` | `deploy` | done | `DeployCommandDeclarationHandler`, `DeployCommandHandler` |
 | Local module dependencies in the app model | `QuarkusMavenWorkspaceBuilder` | `ApplicationDeploymentClasspathBuilder` | done | `WorkspaceModule`, `ArtifactSources` |
-| Incremental up-to-date check on configuration | `track-config-changes` | `quarkusShowEffectiveConfig` | **todo** | config dump file compared between builds |
+| Incremental up-to-date check on configuration | `track-config-changes` | `quarkusShowEffectiveConfig` | done | config dump file compared between builds |
 | Code generation, main sources | `generate-code` | `quarkusGenerateCode` | **blocked** | `CodeGenerator.initAndRun(...)` |
 | Code generation, dev sources | `generate-code` (`launchMode=DEVELOPMENT`) | `quarkusGenerateCodeDev` | blocked | same |
 | Code generation, test sources | `generate-code-tests` | `quarkusGenerateCodeTests` | **blocked** | same |
@@ -63,7 +64,7 @@ already covers marked `done`.
 | `manifestEntries` | `manifestEntries` | `manifest { attributes }` | extra `MANIFEST.MF` attributes | medium |
 | `manifestSections` | `manifestSections` | `manifest { manifestSections }` | per-section manifest attributes | low |
 | `ignoredEntries` | `ignoredEntries` | `ignoredEntries` | maps to `quarkus.package.jar.user-configured-ignored-entries` | medium |
-| `cachingRelevantProperties` | — | `cachingRelevantProperties` | property patterns that take part in the up-to-date check | medium (with §3.7) |
+| `cachingRelevantProperties` | — | `cachingRelevantProperties` | property patterns that take part in the up-to-date check | done |
 | `cleanupBuildOutput` | — | `cleanupBuildOutput` | delete previous output before augmentation | low |
 | `codeGenerationInputs` | derived from source roots | `codeGenerationInputs` | extra input directories for code generators | with §4.2 |
 | `codeGenerationProviders` | — | `codeGenerationProviders` | restrict which generators run | with §4.2 |
@@ -288,6 +289,23 @@ Do.
 * Give `quarkusBuild` and `quarkusNative` an `@Input` on that file. KTC infers the task order from the matching
   path, so no manual wiring is needed.
 * Add `settings.cachingRelevantProperties` to narrow which properties are written into the file.
+
+Done, as `quarkusEffectiveConfig`. The task carries `ExecutionAvoidance.Disabled`, so it runs on every invocation,
+and `writeIfChanged` rewrites `effective-config.properties` only when the content differs. `quarkusBuild` and
+`quarkusNative` declare that file as an `@Input` without reading it; the toolchain infers the task order from the
+matching path. `settings.cachingRelevantProperties` holds anchored regular expressions over property names,
+defaulting to Gradle's `quarkus[.].*` and `platform[.]quarkus[.].*`; a pattern that matches no property is looked up
+as an environment variable, so a build can be keyed on one.
+
+Verified: `KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.package.jar.type=uber-jar" ./kotlin do quarkusBuild -m app` re-runs
+augmentation, running it a second time with the same value does not, and dropping the property re-runs it again.
+
+What it does not do. The task does not resolve the application model: that would cost a full dependency resolution
+on every build, and the platform properties it would add change only with the runtime classpath, which
+`quarkusBuild` already declares as an input, so the file carries no `platform.quarkus.*` values. Content is still
+not hashed, so touching `application.properties`
+re-runs augmentation through the `resources` input, which the file cannot prevent — the resources are packaged into
+the application, so they have to stay an input.
 
 ### 3.8 Dev mode
 
@@ -562,8 +580,8 @@ Transitive versions that come from an artifact's own parent POM are applied corr
 3. ~~§3.3 `quarkusRun`~~ — done.
 4. ~~§3.4 effective configuration~~ — done.
 5. ~~§3.5 local module dependencies~~ — done.
-6. §3.7 incrementality. **Next.**
-7. File the two remaining KTC feature requests (§3.6 resolved dependencies without the module's own output; §4.1
+6. ~~§3.7 incrementality~~ — done.
+7. **Next.** File the two remaining KTC feature requests (§3.6 resolved dependencies without the module's own output; §4.1
    test-JVM properties; test-scope references). Also file the one-line `PathTestHelper` fallback against Quarkus,
    and the two resolution gaps of §4.6. Drafts are in `docs/tickets.md`. §4.5 is filed as KTC-5843.
    `quarkusTestModel` is shipped.

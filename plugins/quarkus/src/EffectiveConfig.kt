@@ -43,6 +43,7 @@ internal class EffectiveConfig(
     val profile: String,
     val baseName: String,
     propagatedSources: Set<String>,
+    private val syntheticNames: Set<String>,
 ) {
     val sourceNames: List<String> = config.configSources.map { it.name }
 
@@ -63,11 +64,28 @@ internal class EffectiveConfig(
         )
     }
 
+    /**
+     * The values that decide whether a cached build is still valid. Patterns are anchored regular expressions over
+     * property names; a pattern that matches nothing is looked up as an environment variable, so a build can be
+     * keyed on one.
+     */
+    fun cachingRelevantValues(patterns: List<String>): Map<String, String> {
+        val compiled = patterns.map { Regex("^($it)$") }
+        val values = withoutExpansion { name, _ -> compiled.any { it.matches(name) } }.toSortedMap()
+        for (pattern in patterns) {
+            if (pattern !in values) {
+                System.getenv(pattern)?.let { values[pattern] = it }
+            }
+        }
+        return values
+    }
+
     private fun withoutExpansion(keep: (String, String?) -> Boolean): Map<String, String> =
         Expressions.withoutExpansion(
             Supplier {
                 val values = sortedMapOf<String, String>()
                 for (name in config.propertyNames) {
+                    if (name in syntheticNames) continue
                     val value = config.getConfigValue(name)
                     val raw = value.value ?: continue
                     if (keep(name, value.configSourceName)) {
@@ -100,6 +118,7 @@ internal fun resolveEffectiveConfig(
         "platformProperties",
         PLATFORM_ORDINAL,
     )
+    val synthetic = if (platformProperties.isEmpty()) setOf(PLATFORM_PLACEHOLDER) else emptySet()
 
     val config = SmallRyeConfigBuilder()
         .forClassLoader(resourceClassLoader(resourceDirectories))
@@ -126,6 +145,7 @@ internal fun resolveEffectiveConfig(
             SysPropConfigSource.NAME,
             DefaultValuesConfigSource.NAME,
         ),
+        syntheticNames = synthetic,
     )
 }
 

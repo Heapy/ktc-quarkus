@@ -95,6 +95,43 @@ class EffectiveConfigTest {
     }
 
     @Test
+    fun `the caching-relevant values default to every quarkus property`() {
+        val effective = config(buildProperties = mapOf("quarkus.prop.overload" to "from-build"))
+
+        val values = effective.cachingRelevantValues(listOf("quarkus[.].*", "platform[.]quarkus[.].*"))
+
+        assertEquals("from-build", values["quarkus.prop.overload"])
+        assertEquals("app", values[BUILD_BASE_NAME])
+    }
+
+    @Test
+    fun `a narrower pattern drops the other properties`() {
+        val effective = config(
+            buildProperties = mapOf("quarkus.kept.value" to "yes", "quarkus.dropped.value" to "no"),
+        )
+
+        val values = effective.cachingRelevantValues(listOf("quarkus[.]kept[.].*"))
+
+        assertEquals(mapOf("quarkus.kept.value" to "yes"), values)
+    }
+
+    @Test
+    fun `a pattern that matches no property falls back to an environment variable`() {
+        val variable = System.getenv().keys.first { it.matches(Regex("[A-Za-z_][A-Za-z0-9_]*")) }
+
+        val values = config().cachingRelevantValues(listOf(variable))
+
+        assertEquals(System.getenv(variable), values[variable])
+    }
+
+    @Test
+    fun `rendered properties are sorted and carry no timestamp`() {
+        val rendered = renderProperties(mapOf("b" to "2", "a" to "1"))
+
+        assertEquals("a=1\nb=2\n", rendered)
+    }
+
+    @Test
     fun `the profile follows the bootstrap mode`() {
         assertEquals("prod", quarkusProfile(emptyMap(), QuarkusBootstrap.Mode.PROD))
         assertEquals("test", quarkusProfile(emptyMap(), QuarkusBootstrap.Mode.TEST))

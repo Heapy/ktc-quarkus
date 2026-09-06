@@ -7,10 +7,8 @@ import org.jetbrains.amper.plugins.Input
 import org.jetbrains.amper.plugins.ModuleSources
 import org.jetbrains.amper.plugins.Output
 import org.jetbrains.amper.plugins.TaskAction
-import java.io.StringWriter
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Properties
 
 private const val SERIALIZED_TEST_APP_MODEL = "quarkus-internal-test.serialized-app-model.path"
 private const val OUTPUT_SOURCES_DIR = "OUTPUT_SOURCES_DIR"
@@ -51,13 +49,14 @@ fun quarkusTestModel(
     Files.createDirectories(modelDir)
     ApplicationModelSerializer.serialize(application.applicationModel, modelFile)
 
-    val properties = Properties()
-    properties.setProperty(SERIALIZED_TEST_APP_MODEL, modelFile.toAbsolutePath().toString())
-    properties.setProperty(OUTPUT_SOURCES_DIR, outputSourcesDir(classes, resources))
+    val properties = mapOf(
+        SERIALIZED_TEST_APP_MODEL to modelFile.toAbsolutePath().toString(),
+        OUTPUT_SOURCES_DIR to outputSourcesDir(classes, resources),
+    )
 
     writeIfChanged(
         testResourcesDir.resolve(PROPERTIES_RESOURCE),
-        render(properties).toByteArray(),
+        renderProperties(properties).toByteArray(),
     )
     writeIfChanged(
         testResourcesDir.resolve(SERVICES_RESOURCE),
@@ -75,16 +74,6 @@ private fun outputSourcesDir(classes: CompilationArtifact, resources: ModuleSour
     (listOf(classes.artifact) + resources.sourceDirectories)
         .joinToString(",") { it.toAbsolutePath().toString() }
 
-/** `Properties.store` stamps the current time into a comment, which would make every build dirty. */
-private fun render(properties: Properties): String {
-    val writer = StringWriter()
-    properties.store(writer, null)
-    return writer.toString()
-        .lineSequence()
-        .filterNot { it.startsWith("#") }
-        .joinToString("\n")
-}
-
 private fun listenerResource(): String =
     LISTENER_CLASS.replace('.', '/') + ".class"
 
@@ -93,12 +82,4 @@ private fun readListenerClass(): ByteArray {
     val stream = QuarkusSettings::class.java.classLoader.getResourceAsStream(resource)
         ?: error("The Quarkus plugin classpath has no $resource")
     return stream.use { it.readBytes() }
-}
-
-private fun writeIfChanged(file: Path, content: ByteArray) {
-    if (Files.exists(file) && Files.readAllBytes(file).contentEquals(content)) {
-        return
-    }
-    Files.createDirectories(file.parent)
-    Files.write(file, content)
 }

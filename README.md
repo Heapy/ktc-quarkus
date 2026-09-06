@@ -81,6 +81,7 @@ Output goes to `build/tasks/_app_quarkusBuild@quarkus/`:
 | `platformBom`     | derived             | `groupId:artifactId:version` of the platform BOM used for the deployment graph. Defaults to `io.quarkus:quarkus-bom` at the Quarkus version found on the runtime classpath |
 | `finalName`       | module name         | Base name of the runner jar and the native binary, also `quarkus.build.base-name` |
 | `buildProperties` | empty               | Extra build-time Quarkus configuration. Only `quarkus.*` keys reach augmentation |
+| `cachingRelevantProperties` | `quarkus[.].*`, `platform[.]quarkus[.].*` | Anchored regular expressions over property names whose values take part in the up-to-date check of `quarkusBuild` and `quarkusNative`. A pattern that matches no property is looked up as an environment variable |
 | `containerBuild`  | `true`              | Run `native-image` inside the Mandrel builder container                 |
 | `run`             | see below           | Options for `quarkusRun`                                                |
 | `image`           | see below           | Options for `quarkusImageBuild` and `quarkusImagePush`                  |
@@ -155,6 +156,11 @@ descending priority: forced task properties, system properties, environment, `bu
 ```shell
 KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.package.jar.type=uber-jar" ./kotlin do quarkusBuild -m app
 ```
+
+`quarkusEffectiveConfig` writes those values, narrowed by `cachingRelevantProperties`, to
+`effective-config.properties`. `quarkusBuild` and `quarkusNative` take that file as an input, so changing a system
+property or an environment variable re-runs augmentation and repeating the same one does not. The task itself runs
+on every invocation and rewrites the file only when the content differs.
 
 `quarkusImageBuild` and `quarkusImagePush` are the same production build with `quarkus.container-image.*` forced,
 so the container-image extension does the work during augmentation.

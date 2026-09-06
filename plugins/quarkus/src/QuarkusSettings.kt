@@ -21,6 +21,13 @@ interface QuarkusSettings {
 
     val buildProperties: Map<String, String> get() = emptyMap()
 
+    /**
+     * Anchored regular expressions over property names. Their values take part in the up-to-date check of
+     * `quarkusBuild` and `quarkusNative`. A pattern that matches no property is looked up as an environment
+     * variable, so a build can be keyed on one.
+     */
+    val cachingRelevantProperties: List<String> get() = listOf("quarkus[.].*", "platform[.]quarkus[.].*")
+
     /** Run `native-image` inside a builder container instead of requiring a local GraalVM. */
     val containerBuild: Boolean get() = true
 

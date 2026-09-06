@@ -9,6 +9,10 @@ import org.jetbrains.amper.plugins.Output
 import org.jetbrains.amper.plugins.TaskAction
 import java.nio.file.Path
 
+/**
+ * `effectiveConfig` is declared but not read: it is the file `quarkusEffectiveConfig` writes, and taking it as an
+ * input is what makes a changed system property or environment variable invalidate this task.
+ */
 @TaskAction
 fun quarkusBuild(
     @Input classes: CompilationArtifact,
@@ -16,6 +20,7 @@ fun quarkusBuild(
     @Input runtimeClasspath: Classpath,
     @Input moduleDir: Path,
     @Output outputDir: Path,
+    @Input effectiveConfig: Path,
     moduleName: String,
     settings: QuarkusSettings,
     nativeImage: Boolean = false,
