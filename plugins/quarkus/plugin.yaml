@@ -34,6 +34,20 @@ tasks:
       moduleName: ${module.name}
       settings: ${pluginSettings}
 
+  quarkusDev:
+    action: !io.heapy.ktc.quarkus.quarkusDev
+      classes: ${module.classes}
+      resources: ${module.resources}
+      runtimeClasspath: ${module.runtimeClasspath}
+      moduleDir: ${module.rootDir}
+      outputDir: ${taskOutputDir}
+      moduleName: ${module.name}
+      settings: ${pluginSettings}
+      allOpen: ${module.settings.kotlin.allOpen.enabled}
+      allOpenAnnotations: ${module.settings.kotlin.allOpen.annotations}
+      kotlinVersion: ${module.settings.kotlin.version}
+      jvmRelease: ${module.settings.jvm.release}
+
   quarkusImageBuild:
     action: !io.heapy.ktc.quarkus.quarkusImage
       classes: ${module.classes}
@@ -98,6 +112,7 @@ commands:
   - quarkusBuild
   - quarkusNative
   - quarkusRun
+  - quarkusDev
   - quarkusImageBuild
   - quarkusImagePush
   - quarkusDeploy

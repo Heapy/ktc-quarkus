@@ -5,7 +5,7 @@ What the Quarkus Maven plugin (`devtools/maven`, 32 goals) and the Quarkus Gradl
 in `plugins/quarkus` should implement.
 
 Baseline: KTC `0.12.0`, Quarkus `3.39.2`, plugin source read at Quarkus commit `e1c73424`.
-Today the KTC plugin implements seven commands: `quarkusBuild`, `quarkusNative`, `quarkusRun`,
+Today the KTC plugin implements eight commands: `quarkusBuild`, `quarkusNative`, `quarkusRun`, `quarkusDev`,
 `quarkusImageBuild`, `quarkusImagePush`, `quarkusDeploy` and `quarkusShowEffectiveConfig`, plus the
 `quarkusTestModel` and `quarkusEffectiveConfig` tasks that feed them.
 
@@ -35,7 +35,7 @@ Status values used below:
 | `@QuarkusTest` in the module's own test task | `argLine` injection in `GenerateCodeTestsMojo` | `BeforeTestAction` on `Test` | done, with the §4.1 caveats | `BootstrapConstants.SERIALIZED_TEST_APP_MODEL` |
 | Continuous testing | `test` | `quarkusTest` | blocked | depends on the above |
 | Integration tests against the artifact | failsafe + `quarkus-artifact.properties` | `quarkusIntTest`, `testNative` | blocked | depends on the above |
-| Dev mode | `dev` | `quarkusDev` | **todo** (large) | `DevModeCommandLineBuilder`, `DevModeMain` |
+| Dev mode | `dev` | `quarkusDev` | done | `DevModeCommandLineBuilder`, `DevModeMain` |
 | Remote dev mode | `remote-dev` | `quarkusRemoteDev` | todo (after dev mode) | `DevModeCommandLineBuilder.remoteDev(true)` |
 | Cacheable split of deps and app parts | — | `quarkusDependenciesBuild`, `quarkusAppPartsBuild` | optional | `AugmentAction` with restricted output sets |
 | Prefetch every artifact needed offline | `go-offline` | `quarkusGoOffline` | optional | `BootstrapAppModelResolver` |
@@ -72,7 +72,7 @@ already covers marked `done`.
 | `jvmArgs`, `workingDirectory` | `run` goal | `quarkusRun` | for `quarkusRun` | with §3.3 |
 | `builderName` | `quarkus.container-image.builder` | `ImageCheckRequirementsTask` | for `quarkusImageBuild` | done, as `image.builder` |
 | `deployer`, `image-build`, `image-builder` | `deploy` goal | `deploy` | for `quarkusDeploy` | done, as `deploy.*` |
-| dev-mode knobs (`debug`, `suspend`, `debugHost`, `debugPort`, `jvmArgs`, `applicationArgs`, `compilerOptions`, `openJavaLang`, `tests`) | `dev` goal | `quarkusDev` | for dev mode | with §3.8 |
+| dev-mode knobs (`debug`, `suspend`, `debugHost`, `debugPort`, `jvmArgs`, `applicationArgs`, `compilerOptions`, `openJavaLang`) | `dev` goal | `quarkusDev` | for dev mode | done, as `dev.*` |
 
 Maven-only settings that have no KTC meaning: `skipOriginalJarRename`, `attachRunnerAsMainArtifact`, `attachSboms`,
 `appArtifact`, `reloadPoms`, `quarkusCloseBootstrappedApp`.
@@ -332,6 +332,39 @@ Risks, in order of severity.
 
 Recommendation: do this last, after §3.1–§3.7 have made the application model correct.
 
+Done. `quarkusDev` resolves the model with `BootstrapAppModelResolver.setDevMode(true)` and
+`setCollectReloadableDependencies(true)`, builds the command line with `DevModeCommandLineBuilder`, and forks a JVM
+that runs `DevModeMain`. The plugin therefore depends on `io.quarkus:quarkus-core-deployment`, as the Gradle plugin
+does. The dev-mode process classpath is a second resolution of `quarkus-core-deployment` and
+`quarkus-bootstrap-maven-resolver` at the version the application uses, plus the parent-first artifacts of
+`ConfiguredClassLoading`, exactly as in `QuarkusDev.addQuarkusDevModeDeps`.
+
+`DevModeMain.getApplicationBuildDirs` takes one classes directory and one resources directory, so the module's
+classes and the unpacked local modules are staged into `${taskOutputDir}/dev-classes` and the resources into
+`${taskOutputDir}/dev-resources`. Quarkus recompiles into those, which leaves the toolchain's own output
+untouched: `./kotlin build` and `./kotlin test` are unaffected by a dev session.
+
+The three risks, answered.
+
+1. Kotlin hot reload works. `KotlinCompilationProvider` takes compiler-plugin *paths*, not coordinates, so the
+   plugin resolves `org.jetbrains.kotlin:kotlin-allopen-compiler-plugin-embeddable` at
+   `${module.settings.kotlin.version}` and passes its file. `${module.settings.kotlin.allOpen.annotations}` is
+   forwarded as `all-open:annotation=<fqn>`; `presets` is an enum the plugin cannot read, so the `quarkus` preset is
+   assumed. That preset only covers `javax.enterprise.context.ApplicationScoped` and `RequestScoped`, which Quarkus
+   3 no longer uses, so on its own it opens nothing — the toolchain's own compiler produces a final class for a
+   `jakarta.enterprise.context.ApplicationScoped` bean too, and ArC's unproxyable-class transformation is what
+   makes those beans work. Verified by decompiling the recompiled class: final without a declared annotation, open
+   with one.
+2. Registered as a command with `ExecutionAvoidance.Disabled`. `./kotlin do` gives the forked process a terminal:
+   the aesh console renders, and continuous testing offers `[r] to resume testing`. `SIGTERM`, which the shutdown
+   hook of `runProcess` sends, stops the application cleanly and the task then returns.
+3. `module.yaml` is still not watched. `builder.watchedBuildFile` has no KTC equivalent, so a change there needs a
+   restart.
+
+Local modules do hot-reload after all, because their sources are part of the main `ModuleInfo` and their classes
+are staged into the same tree, so the §3.5 trade-off costs less than expected. They are not separate reloadable
+archives, so a change in one restarts the whole application rather than reloading that module alone.
+
 ## 4. Blocked on the toolchain
 
 ### 4.1 `@QuarkusTest` (the biggest gap)
@@ -585,5 +618,5 @@ Transitive versions that come from an artifact's own parent POM are applied corr
    test-JVM properties; test-scope references). Also file the one-line `PathTestHelper` fallback against Quarkus,
    and the two resolution gaps of §4.6. Drafts are in `docs/tickets.md`. §4.5 is filed as KTC-5843.
    `quarkusTestModel` is shipped.
-8. §3.8 dev mode.
+8. ~~§3.8 dev mode~~ — done.
 9. §4.2 code generation, once §3.6 lands.

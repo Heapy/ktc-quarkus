@@ -31,13 +31,16 @@ import java.util.zip.ZipFile
  */
 internal class QuarkusApplication(
     val applicationModel: ApplicationModel,
+    val resolver: MavenArtifactResolver,
     private val applicationRoots: PathList,
-    private val resourceDirectories: List<Path>,
-    private val moduleDir: Path,
-    private val outputDir: Path,
-    private val moduleName: String,
-    private val settings: QuarkusSettings,
-    private val quarkusVersion: String,
+    val resourceDirectories: List<Path>,
+    val classesDir: Path,
+    val localModuleRoots: Map<String, Path>,
+    val moduleDir: Path,
+    val outputDir: Path,
+    val moduleName: String,
+    val settings: QuarkusSettings,
+    val quarkusVersion: String,
     val artifactIds: Set<String>,
 ) {
     fun effectiveConfig(
@@ -86,6 +89,7 @@ internal fun resolveApplication(
     outputDir: Path,
     moduleName: String,
     settings: QuarkusSettings,
+    mode: QuarkusBootstrap.Mode = QuarkusBootstrap.Mode.PROD,
 ): QuarkusApplication {
     val classpath = readClasspath(runtimeClasspath, moduleName)
     val applicationSources = applicationSources(moduleDir, classes.artifact, outputDir, classpath.localModules)
@@ -123,10 +127,18 @@ internal fun resolveApplication(
     mavenConfig.setWorkspaceDiscovery(false)
     val resolver = MavenArtifactResolver(BootstrapMavenContext(mavenConfig))
 
+    val devMode = mode == QuarkusBootstrap.Mode.DEV
+    val modelResolver = BootstrapAppModelResolver(resolver)
+        .setDevMode(devMode)
+        .setCollectReloadableDependencies(devMode)
+
     return QuarkusApplication(
-        applicationModel = BootstrapAppModelResolver(resolver).resolveModel(module),
+        applicationModel = modelResolver.resolveModel(module),
+        resolver = resolver,
         applicationRoots = PathList.from((applicationSources + resourceSources).map { it.outputDir }),
         resourceDirectories = resources.sourceDirectories,
+        classesDir = classes.artifact,
+        localModuleRoots = classpath.localModules.mapValues { (name, _) -> outputDir.resolve("local").resolve(name) },
         moduleDir = moduleDir,
         outputDir = outputDir,
         moduleName = moduleName,

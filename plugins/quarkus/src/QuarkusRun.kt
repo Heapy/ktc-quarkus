@@ -9,7 +9,6 @@ import org.jetbrains.amper.plugins.ModuleSources
 import org.jetbrains.amper.plugins.Output
 import org.jetbrains.amper.plugins.TaskAction
 import java.nio.file.Path
-import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
 import kotlin.system.exitProcess
 
@@ -95,26 +94,7 @@ private fun launch(command: List<*>, run: QuarkusRunSettings, moduleDir: Path): 
         ?: run.workingDirectory?.let(moduleDir::resolve)
         ?: moduleDir
 
-    println("Executing ${arguments.joinToString(" ")}")
-
-    val process = ProcessBuilder(arguments)
-        .directory(workingDirectory.toFile())
-        .inheritIO()
-        .also { it.environment().putAll(run.environment) }
-        .start()
-
-    val hook = Thread {
-        process.destroy()
-        if (!process.waitFor(5, TimeUnit.SECONDS)) {
-            process.destroyForcibly()
-        }
-    }
-    Runtime.getRuntime().addShutdownHook(hook)
-    try {
-        return process.waitFor()
-    } finally {
-        runCatching { Runtime.getRuntime().removeShutdownHook(hook) }
-    }
+    return runProcess(arguments, run.environment, workingDirectory)
 }
 
 private fun programArguments(run: QuarkusRunSettings): List<String> =
