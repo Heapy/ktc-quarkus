@@ -24,4 +24,7 @@ settings:
       presets: [ quarkus ]
 
 plugins:
-  quarkus: enabled
+  quarkus:
+    enabled: true
+    buildProperties:
+      quarkus.application.name: ktc-sample

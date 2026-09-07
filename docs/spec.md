@@ -462,8 +462,11 @@ except one environment variable is done by the plugin.
 
 * `quarkusTestModel` writes the serialized `ApplicationModel` into `${taskOutputDir}/model`, and into
   `${taskOutputDir}/test-resources`:
-  * `META-INF/ktc-quarkus-test.properties` — `quarkus-internal-test.serialized-app-model.path` and
-    `OUTPUT_SOURCES_DIR`;
+  * `META-INF/ktc-quarkus-test.properties` — `quarkus-internal-test.serialized-app-model.path`,
+    `OUTPUT_SOURCES_DIR`, and the `buildSystemProperties` of the effective TEST configuration. That last set is
+    what the test JVM cannot work out on its own: it reads `application.properties`, `application.yaml` and the
+    environment again for itself, but not `buildProperties`, the manifest settings, the platform BOM or the
+    system properties the build JVM was started with;
   * `META-INF/services/org.junit.platform.launcher.LauncherSessionListener`;
   * `QuarkusTestListener.class`. The listener is Java, so it does not drag the plugin's Kotlin stdlib into the test
     JVM, and it cannot be a `generated.sources` entry: compiling it needs `junit-platform-launcher` on the module's

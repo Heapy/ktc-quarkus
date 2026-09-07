@@ -51,10 +51,15 @@ fun quarkusTestModel(
     Files.createDirectories(modelDir)
     ApplicationModelSerializer.serialize(application.applicationModel, modelFile)
 
-    val properties = mapOf(
-        SERIALIZED_TEST_APP_MODEL to modelFile.toAbsolutePath().toString(),
-        OUTPUT_SOURCES_DIR to outputSourcesDir(classes, resources),
-    )
+    val properties = buildMap {
+        // The test JVM augments the application again, and it reads application.properties and the environment for
+        // itself. What it cannot reach is everything the build derived from the module: buildProperties, the
+        // manifest settings, the platform BOM and the system properties of the build JVM.
+        application.effectiveConfig(QuarkusBootstrap.Mode.TEST).buildSystemProperties
+            .forEach { (key, value) -> put(key.toString(), value.toString()) }
+        put(SERIALIZED_TEST_APP_MODEL, modelFile.toAbsolutePath().toString())
+        put(OUTPUT_SOURCES_DIR, outputSourcesDir(classes, resources))
+    }
 
     writeIfChanged(
         testResourcesDir.resolve(PROPERTIES_RESOURCE),
