@@ -48,6 +48,7 @@ internal class QuarkusApplication(
     fun effectiveConfig(
         mode: QuarkusBootstrap.Mode,
         forcedProperties: Map<String, String> = emptyMap(),
+        settingProperties: Map<String, String> = emptyMap(),
     ): EffectiveConfig =
         settingsConfig(
             resourceDirectories = resourceDirectories,
@@ -56,14 +57,16 @@ internal class QuarkusApplication(
             mode = mode,
             platformProperties = applicationModel.platformProperties,
             forcedProperties = forcedProperties,
+            settingProperties = settingProperties,
         )
 
     fun bootstrap(
         mode: QuarkusBootstrap.Mode,
         targetDirectory: Path = outputDir,
-        extraBuildProperties: Map<String, String> = emptyMap(),
+        forcedProperties: Map<String, String> = emptyMap(),
+        settingProperties: Map<String, String> = emptyMap(),
     ): CuratedApplication {
-        val config = effectiveConfig(mode, extraBuildProperties)
+        val config = effectiveConfig(mode, forcedProperties, settingProperties)
         println("Bootstrapping '$moduleName' with Quarkus $quarkusVersion in $mode mode, profile '${config.profile}'")
 
         return QuarkusBootstrap.builder()

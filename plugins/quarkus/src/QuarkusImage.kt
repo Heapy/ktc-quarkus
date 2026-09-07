@@ -50,7 +50,7 @@ fun quarkusImage(
 
     application.bootstrap(
         mode = QuarkusBootstrap.Mode.PROD,
-        extraBuildProperties = properties,
+        forcedProperties = properties,
     ).use { it.buildProductionApplication() }
 }
 

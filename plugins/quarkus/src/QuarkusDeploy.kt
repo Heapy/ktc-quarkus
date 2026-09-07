@@ -119,7 +119,7 @@ private fun deployThroughConfiguration(application: QuarkusApplication, settings
 
     application.bootstrap(
         mode = QuarkusBootstrap.Mode.PROD,
-        extraBuildProperties = properties,
+        forcedProperties = properties,
     ).use { it.buildProductionApplication() }
 }
 

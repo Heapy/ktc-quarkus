@@ -114,6 +114,40 @@ class ManifestTest {
         assertEquals("prod", config.profile)
     }
 
+    @Test
+    fun `a settings-derived property loses to the module own build properties`() {
+        val name = "quarkus.native.container-build"
+
+        val config = settingsConfig(
+            resourceDirectories = emptyList(),
+            moduleName = "app",
+            settings = settings(buildProperties = mapOf(name to "false")),
+            mode = QuarkusBootstrap.Mode.PROD,
+            settingProperties = mapOf(name to "true"),
+        )
+
+        assertEquals("false", config.quarkusValues[name])
+    }
+
+    @Test
+    fun `a system property wins over a settings-derived property`() {
+        val name = "quarkus.native.container-build"
+        System.setProperty(name, "false")
+        try {
+            val config = settingsConfig(
+                resourceDirectories = emptyList(),
+                moduleName = "app",
+                settings = settings(),
+                mode = QuarkusBootstrap.Mode.PROD,
+                settingProperties = mapOf(name to "true"),
+            )
+
+            assertEquals("false", config.quarkusValues[name])
+        } finally {
+            System.clearProperty(name)
+        }
+    }
+
     private fun settings(
         manifestEntries: Map<String, String> = emptyMap(),
         manifestSections: Map<String, Map<String, String>> = emptyMap(),

@@ -10,6 +10,8 @@ import org.jetbrains.amper.plugins.TaskAction
 import java.nio.file.Path
 
 private const val BUILD_SKIP = "quarkus.build.skip"
+private const val NATIVE_ENABLED = "quarkus.native.enabled"
+private const val NATIVE_CONTAINER_BUILD = "quarkus.native.container-build"
 
 /**
  * `effectiveConfig` is declared but not read: it is the file `quarkusEffectiveConfig` writes, and taking it as an
@@ -35,11 +37,12 @@ fun quarkusBuild(
         outputDir.toFile().deleteRecursively()
     }
 
-    val nativeProperties = if (nativeImage) {
-        mapOf(
-            "quarkus.native.enabled" to "true",
-            "quarkus.native.container-build" to settings.containerBuild.toString(),
-        )
+    val forcedProperties = if (nativeImage) mapOf(NATIVE_ENABLED to "true") else emptyMap()
+
+    // NativeConfig.containerBuild() is an Optional<Boolean>: forcing it would also take away the empty case, in
+    // which Quarkus derives the answer from quarkus.native.container-runtime.
+    val settingProperties = if (nativeImage) {
+        mapOf(NATIVE_CONTAINER_BUILD to settings.containerBuild.toString())
     } else {
         emptyMap()
     }
@@ -54,7 +57,8 @@ fun quarkusBuild(
         settings = settings,
     ).bootstrap(
         mode = QuarkusBootstrap.Mode.PROD,
-        extraBuildProperties = nativeProperties,
+        forcedProperties = forcedProperties,
+        settingProperties = settingProperties,
     ).use { application ->
         application.buildProductionApplication()
     }

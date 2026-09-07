@@ -51,6 +51,17 @@ class EffectiveConfigTest {
     }
 
     @Test
+    fun `a system property wins over a build property`() {
+        val name = "quarkus.prop.overload"
+        System.setProperty(name, "from-system")
+        try {
+            assertEquals("from-system", config(buildProperties = mapOf(name to "from-build")).quarkusValues[name])
+        } finally {
+            System.clearProperty(name)
+        }
+    }
+
+    @Test
     fun `forced properties win over build properties`() {
         val effective = config(
             buildProperties = mapOf("quarkus.prop.overload" to "from-build"),

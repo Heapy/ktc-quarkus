@@ -164,6 +164,9 @@ internal fun resolveEffectiveConfig(
  * The single mapping from plugin settings to configuration sources. `quarkusEffectiveConfig` computes the cache key
  * and `QuarkusApplication` computes what augmentation runs with; a source added to only one of them would let a
  * setting change without invalidating the build.
+ *
+ * `settingProperties` are the values a task derives from its own settings. They join the build properties rather than
+ * the forced ones, so a system property or an explicit `buildProperties` entry still wins over them.
  */
 internal fun settingsConfig(
     resourceDirectories: List<Path>,
@@ -172,11 +175,12 @@ internal fun settingsConfig(
     mode: QuarkusBootstrap.Mode,
     platformProperties: Map<String, String> = emptyMap(),
     forcedProperties: Map<String, String> = emptyMap(),
+    settingProperties: Map<String, String> = emptyMap(),
 ): EffectiveConfig =
     resolveEffectiveConfig(
         resourceDirectories = resourceDirectories,
         platformProperties = platformProperties,
-        buildProperties = settings.buildProperties,
+        buildProperties = settingProperties + settings.buildProperties,
         forcedProperties = forcedProperties,
         taskProperties = manifestProperties(settings),
         defaultProperties = ignoredEntriesProperties(settings),
