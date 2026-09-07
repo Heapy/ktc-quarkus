@@ -119,16 +119,14 @@ fun quarkusDev(
             listOf(ALL_OPEN_QUARKUS_PRESET) + allOpenAnnotations.orEmpty().map { "all-open:annotation=$it" }
         )
     }
-    if (dev.arguments.isNotEmpty()) {
-        builder.applicationArgs(dev.arguments.joinToString(" "))
-    }
-
     addDevModeClasspath(builder, application)
     addSerializedModel(builder, application.applicationModel, outputDir)
 
     val command = builder.build()
     val workingDirectory = dev.workingDirectory?.let(moduleDir::resolve) ?: moduleDir
-    val exitCode = runProcess(command.arguments, dev.environment, workingDirectory)
+    // applicationArgs() takes one string and the builder splits it again on whitespace and quotes, which would
+    // turn an argument that contains a space into two. The builder appends them last, so this is the same argv.
+    val exitCode = runProcess(command.arguments + dev.arguments, dev.environment, workingDirectory)
     if (exitCode != 0) {
         exitProcess(exitCode)
     }
