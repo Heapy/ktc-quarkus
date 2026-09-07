@@ -1,6 +1,7 @@
 package io.heapy.ktc.quarkus
 
 import io.quarkus.bootstrap.app.ApplicationModelSerializer
+import io.quarkus.bootstrap.app.QuarkusBootstrap
 import org.jetbrains.amper.plugins.Classpath
 import org.jetbrains.amper.plugins.CompilationArtifact
 import org.jetbrains.amper.plugins.Input
@@ -43,6 +44,7 @@ fun quarkusTestModel(
         outputDir = modelDir,
         moduleName = moduleName,
         settings = settings,
+        mode = QuarkusBootstrap.Mode.TEST,
     )
 
     val modelFile = modelDir.resolve("app-model.dat")

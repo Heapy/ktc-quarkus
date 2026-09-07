@@ -55,6 +55,8 @@ fun quarkusRun(
             DEV_SERVICES_RESULT,
         )
 
+        exitCode
+    }.let { exitCode ->
         if (exitCode != 0) {
             exitProcess(exitCode)
         }

@@ -277,7 +277,7 @@ plugins:
 
 | Property | Values | Applies to |
 |---|---|---|
-| `quarkus.mode` | `prod` (default), `test`, `dev` | info, tree, list, sbom, go-offline |
+| `quarkus.mode` | `prod` (default), `test`, `dev` | info, tree, list, sbom |
 | `quarkus.dependency.verbose` | `true` | tree, list |
 | `quarkus.dependency.graph` | `true` | tree |
 | `quarkus.dependency.runtime-only` | `true` | tree |

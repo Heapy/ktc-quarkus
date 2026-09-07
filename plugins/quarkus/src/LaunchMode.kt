@@ -16,4 +16,6 @@ internal fun launchMode(): QuarkusBootstrap.Mode =
         else -> error("$MODE was set to '$mode'. Choose one of 'prod', 'test' or 'dev'.")
     }
 
-internal fun flag(name: String): Boolean = System.getProperty(name) == "true"
+/** `-Dname` with no value sets the empty string. */
+internal fun flag(name: String): Boolean =
+    System.getProperty(name)?.let { it.isEmpty() || it.toBoolean() } == true

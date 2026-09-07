@@ -85,9 +85,10 @@ private class ModuleModelResolver(application: QuarkusApplication) : EffectiveMo
     private val delegate = EffectiveModelResolver.of(application.resolver)
     private val group = application.settings.group
     private val artifact = application.moduleName
+    private val version = application.settings.version
 
     override fun resolveEffectiveModel(coords: ArtifactCoords, repos: List<RemoteRepository>): Model =
-        if (coords.groupId == group && coords.artifactId == artifact) {
+        if (coords.groupId == group && coords.artifactId == artifact && coords.version == version) {
             Model()
         } else {
             delegate.resolveEffectiveModel(coords, repos)

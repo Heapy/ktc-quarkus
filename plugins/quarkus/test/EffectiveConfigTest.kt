@@ -3,6 +3,7 @@ package io.heapy.ktc.quarkus
 import io.quarkus.bootstrap.app.QuarkusBootstrap
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Properties
 import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -129,6 +130,16 @@ class EffectiveConfigTest {
         val rendered = renderProperties(mapOf("b" to "2", "a" to "1"))
 
         assertEquals("a=1\nb=2\n", rendered)
+    }
+
+    @Test
+    fun `a rendered value survives the Properties load that reads it back`() {
+        val path = "/Users/jos\u00e9/caf\u00e9/app-model.dat"
+
+        val rendered = renderProperties(mapOf("path" to path))
+
+        val loaded = Properties().apply { load(rendered.toByteArray().inputStream()) }
+        assertEquals(path, loaded.getProperty("path"))
     }
 
     @Test

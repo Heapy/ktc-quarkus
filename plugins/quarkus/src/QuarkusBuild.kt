@@ -27,7 +27,7 @@ fun quarkusBuild(
     settings: QuarkusSettings,
     nativeImage: Boolean = false,
 ) {
-    if (settings.skip || System.getProperty(BUILD_SKIP) == "true") {
+    if (settings.skip || flag(BUILD_SKIP)) {
         println("Skipping the Quarkus build of '$moduleName'")
         return
     }

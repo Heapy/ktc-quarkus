@@ -37,6 +37,7 @@ internal class QuarkusApplication(
     val resourceDirectories: List<Path>,
     val classesDir: Path,
     val localModuleRoots: Map<String, Path>,
+    val localModuleSources: Map<String, Path>,
     val moduleDir: Path,
     val outputDir: Path,
     val moduleName: String,
@@ -48,17 +49,13 @@ internal class QuarkusApplication(
         mode: QuarkusBootstrap.Mode,
         forcedProperties: Map<String, String> = emptyMap(),
     ): EffectiveConfig =
-        resolveEffectiveConfig(
+        settingsConfig(
             resourceDirectories = resourceDirectories,
+            moduleName = moduleName,
+            settings = settings,
+            mode = mode,
             platformProperties = applicationModel.platformProperties,
-            buildProperties = settings.buildProperties,
             forcedProperties = forcedProperties,
-            taskProperties = manifestProperties(settings),
-            defaultProperties = ignoredEntriesProperties(settings),
-            applicationName = moduleName,
-            applicationVersion = settings.version,
-            baseName = settings.finalName ?: moduleName,
-            profile = quarkusProfile(settings.buildProperties, mode),
         )
 
     fun bootstrap(
@@ -147,6 +144,7 @@ internal fun resolveApplication(
         resourceDirectories = resources.sourceDirectories,
         classesDir = classes.artifact,
         localModuleRoots = classpath.localModules.mapValues { (name, _) -> outputDir.resolve("local").resolve(name) },
+        localModuleSources = classpath.localModules.mapValues { (name, _) -> localModuleSource(moduleDir, name) },
         moduleDir = moduleDir,
         outputDir = outputDir,
         moduleName = moduleName,
@@ -223,10 +221,22 @@ private fun applicationSources(
     for ((name, jar) in localModules) {
         val root = outputDir.resolve("local").resolve(name)
         unpackJar(jar, root)
-        sources.add(SourceDir.of(moduleDir.resolveSibling(name).resolve("src"), root))
+        val source = localModuleSource(moduleDir, name)
+        if (!Files.isDirectory(source)) {
+            System.err.println(
+                "Quarkus plugin: local module '$name' has no source directory at $source, so its sources are " +
+                    "invisible to augmentation and to dev mode. Only a module directory that is a sibling of " +
+                    "'${moduleDir.fileName}' and named after the module is found."
+            )
+        }
+        sources.add(SourceDir.of(source, root))
     }
     return sources
 }
+
+/** A plugin cannot read a dependency's own directory, so a local module is assumed to be a sibling named after it. */
+private fun localModuleSource(moduleDir: Path, name: String): Path =
+    moduleDir.resolveSibling(name).resolve("src")
 
 private class ClasspathEntries(
     val mavenArtifacts: List<JarCoords>,

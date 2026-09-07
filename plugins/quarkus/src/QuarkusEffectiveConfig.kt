@@ -25,17 +25,11 @@ fun quarkusEffectiveConfig(
     moduleName: String,
     settings: QuarkusSettings,
 ) {
-    val config = resolveEffectiveConfig(
+    val config = settingsConfig(
         resourceDirectories = resources.sourceDirectories,
-        platformProperties = emptyMap(),
-        buildProperties = settings.buildProperties,
-        forcedProperties = emptyMap(),
-        taskProperties = manifestProperties(settings),
-        defaultProperties = ignoredEntriesProperties(settings),
-        applicationName = moduleName,
-        applicationVersion = settings.version,
-        baseName = settings.finalName ?: moduleName,
-        profile = quarkusProfile(settings.buildProperties, QuarkusBootstrap.Mode.PROD),
+        moduleName = moduleName,
+        settings = settings,
+        mode = QuarkusBootstrap.Mode.PROD,
     )
 
     writeIfChanged(

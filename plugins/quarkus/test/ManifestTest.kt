@@ -1,5 +1,6 @@
 package io.heapy.ktc.quarkus
 
+import io.quarkus.bootstrap.app.QuarkusBootstrap
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -91,13 +92,38 @@ class ManifestTest {
         assertEquals("from-settings", effective.quarkusValues[attribute])
     }
 
+    @Test
+    fun `the settings mapping carries every settings-derived source into the config`() {
+        val config = settingsConfig(
+            resourceDirectories = emptyList(),
+            moduleName = "app",
+            settings = settings(
+                manifestEntries = mapOf("Built-By" to "ktc"),
+                ignoredEntries = listOf("META-INF/nothing"),
+                finalName = "runner",
+                buildProperties = mapOf("quarkus.package.jar.type" to "uber-jar"),
+            ),
+            mode = QuarkusBootstrap.Mode.PROD,
+        )
+
+        assertEquals("ktc", config.quarkusValues["quarkus.package.jar.manifest.attributes.\"Built-By\""])
+        assertEquals("META-INF/nothing", config.quarkusValues["quarkus.package.jar.user-configured-ignored-entries"])
+        assertEquals("uber-jar", config.quarkusValues["quarkus.package.jar.type"])
+        assertEquals("runner", config.baseName)
+        assertEquals("runner", config.quarkusValues[BUILD_BASE_NAME])
+        assertEquals("prod", config.profile)
+    }
+
     private fun settings(
         manifestEntries: Map<String, String> = emptyMap(),
         manifestSections: Map<String, Map<String, String>> = emptyMap(),
         ignoredEntries: List<String> = emptyList(),
+        finalName: String? = null,
+        buildProperties: Map<String, String> = emptyMap(),
     ): QuarkusSettings = object : QuarkusSettings {
         override val platformBom: String? = null
-        override val finalName: String? = null
+        override val finalName = finalName
+        override val buildProperties = buildProperties
         override val manifestEntries = manifestEntries
         override val manifestSections = manifestSections
         override val ignoredEntries = ignoredEntries

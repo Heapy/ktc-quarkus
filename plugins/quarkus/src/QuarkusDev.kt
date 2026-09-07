@@ -21,9 +21,15 @@ import org.jetbrains.amper.plugins.Input
 import org.jetbrains.amper.plugins.ModuleSources
 import org.jetbrains.amper.plugins.Output
 import org.jetbrains.amper.plugins.TaskAction
+import java.io.IOException
+import java.nio.file.FileSystemLoopException
+import java.nio.file.FileVisitOption
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
 import kotlin.io.path.isDirectory
 import kotlin.system.exitProcess
 
@@ -138,8 +144,7 @@ private fun mainModule(
     devClasses: Path,
     devResources: Path,
 ): DevModeContext.ModuleInfo {
-    val sources = listOf(application.moduleDir.resolve("src")) +
-        application.localModuleRoots.keys.map { application.moduleDir.resolveSibling(it).resolve("src") }
+    val sources = listOf(application.moduleDir.resolve("src")) + application.localModuleSources.values
     val existingSources = sources.filter { it.isDirectory() }
 
     return DevModeContext.ModuleInfo.Builder()
@@ -226,17 +231,31 @@ private fun stage(target: Path, sources: List<Path>): Path {
     Files.createDirectories(target)
     for (source in sources) {
         if (!source.isDirectory()) continue
-        Files.walk(source).use { paths ->
-            paths.forEach { path ->
-                val destination = target.resolve(source.relativize(path).toString())
-                if (path.isDirectory()) {
-                    Files.createDirectories(destination)
-                } else {
-                    Files.createDirectories(destination.parent)
-                    Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING)
-                }
-            }
-        }
+        Files.walkFileTree(source, setOf(FileVisitOption.FOLLOW_LINKS), Int.MAX_VALUE, copyInto(source, target))
     }
     return target
+}
+
+/**
+ * Symlinked directories are followed, so a linked resource tree is staged rather than left empty. Following them
+ * makes the walk report a cycle instead of skipping it, and a link back into the project is not an error here.
+ */
+private fun copyInto(source: Path, target: Path) = object : SimpleFileVisitor<Path>() {
+    override fun preVisitDirectory(directory: Path, attributes: BasicFileAttributes): FileVisitResult {
+        Files.createDirectories(destinationOf(directory))
+        return FileVisitResult.CONTINUE
+    }
+
+    override fun visitFile(file: Path, attributes: BasicFileAttributes): FileVisitResult {
+        Files.copy(file, destinationOf(file), StandardCopyOption.REPLACE_EXISTING)
+        return FileVisitResult.CONTINUE
+    }
+
+    override fun visitFileFailed(file: Path, failure: IOException): FileVisitResult {
+        if (failure !is FileSystemLoopException) throw failure
+        System.err.println("Quarkus plugin: not staging $file, it links back into the tree being staged.")
+        return FileVisitResult.CONTINUE
+    }
+
+    private fun destinationOf(path: Path): Path = target.resolve(source.relativize(path).toString())
 }

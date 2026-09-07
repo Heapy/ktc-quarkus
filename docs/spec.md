@@ -494,10 +494,11 @@ is the second half of the KTC request.
 What stays with the user: one constant line per module, or once in a shared template.
 
 ```yaml
-test-settings:
+settings:
   jvm:
-    extraEnvironment:
-      TEST_TO_MAIN_MAPPINGS: "jvmTest/kotlin-output:jvm/kotlin-output"
+    test:
+      extraEnvironment:
+        TEST_TO_MAIN_MAPPINGS: "jvmTest/kotlin-output:jvm/kotlin-output"
 ```
 
 `TEST_TO_MAIN_MAPPINGS=jvmTest/kotlin-output:jvm/kotlin-output ./kotlin test` is the same thing without editing

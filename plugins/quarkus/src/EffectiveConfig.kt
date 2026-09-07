@@ -48,21 +48,24 @@ internal class EffectiveConfig(
 ) {
     val sourceNames: List<String> = config.configSources.map { it.name }
 
-    /** Every `quarkus.*` value, with `${...}` left unexpanded. */
-    val quarkusValues: Map<String, String> = withoutExpansion { name, _ -> name.startsWith("quarkus.") }
+    val quarkusValues: Map<String, String> by lazy {
+        withoutExpansion { name, _ -> name.startsWith("quarkus.") }
+    }
 
     /**
      * What `setBuildSystemProperties` has to carry into augmentation: the values Quarkus cannot read for itself.
      * Values that come from `application.properties`, `application.yaml` or the environment are left out, because
      * augmentation reads those sources again from the application root.
      */
-    val buildSystemProperties: Properties = Properties().apply {
-        putAll(
-            withoutExpansion { name, source ->
-                (name.startsWith("quarkus.") || name.startsWith("platform.quarkus.")) &&
-                    (name.startsWith("quarkus.test.") || source in propagatedSources)
-            }
-        )
+    val buildSystemProperties: Properties by lazy {
+        Properties().apply {
+            putAll(
+                withoutExpansion { name, source ->
+                    (name.startsWith("quarkus.") || name.startsWith("platform.quarkus.")) &&
+                        (name.startsWith("quarkus.test.") || source in propagatedSources)
+                }
+            )
+        }
     }
 
     /**
@@ -156,6 +159,32 @@ internal fun resolveEffectiveConfig(
         syntheticNames = synthetic,
     )
 }
+
+/**
+ * The single mapping from plugin settings to configuration sources. `quarkusEffectiveConfig` computes the cache key
+ * and `QuarkusApplication` computes what augmentation runs with; a source added to only one of them would let a
+ * setting change without invalidating the build.
+ */
+internal fun settingsConfig(
+    resourceDirectories: List<Path>,
+    moduleName: String,
+    settings: QuarkusSettings,
+    mode: QuarkusBootstrap.Mode,
+    platformProperties: Map<String, String> = emptyMap(),
+    forcedProperties: Map<String, String> = emptyMap(),
+): EffectiveConfig =
+    resolveEffectiveConfig(
+        resourceDirectories = resourceDirectories,
+        platformProperties = platformProperties,
+        buildProperties = settings.buildProperties,
+        forcedProperties = forcedProperties,
+        taskProperties = manifestProperties(settings),
+        defaultProperties = ignoredEntriesProperties(settings),
+        applicationName = moduleName,
+        applicationVersion = settings.version,
+        baseName = settings.finalName ?: moduleName,
+        profile = quarkusProfile(settings.buildProperties, mode),
+    )
 
 internal fun quarkusProfile(buildProperties: Map<String, String>, mode: QuarkusBootstrap.Mode): String =
     System.getProperty(QUARKUS_PROFILE)

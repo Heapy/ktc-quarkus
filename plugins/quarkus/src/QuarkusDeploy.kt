@@ -19,7 +19,7 @@ private const val DEPLOY_RESULT = "io.quarkus.deployment.cmd.DeployCommandAction
 
 private const val DEPLOY_TARGET = "quarkus.deploy.target"
 
-private enum class Deployer(val extension: String) {
+internal enum class Deployer(val extension: String) {
     KUBERNETES("quarkus-kubernetes"),
     MINIKUBE("quarkus-minikube"),
     KIND("quarkus-kind"),
@@ -80,8 +80,13 @@ private fun deployThroughExtension(application: CuratedApplication, target: Stri
     }
 
     println("Deploy target: $selected")
+    val previous = System.getProperty(DEPLOY_TARGET)
     System.setProperty(DEPLOY_TARGET, selected)
-    application.createAugmentor().performCustomBuild(DEPLOY_HANDLER, Consumer<Boolean> { }, DEPLOY_RESULT)
+    try {
+        application.createAugmentor().performCustomBuild(DEPLOY_HANDLER, Consumer<Boolean> { }, DEPLOY_RESULT)
+    } finally {
+        if (previous == null) System.clearProperty(DEPLOY_TARGET) else System.setProperty(DEPLOY_TARGET, previous)
+    }
     return true
 }
 
@@ -95,7 +100,7 @@ private fun declaredTargets(application: CuratedApplication): List<String> {
 /** Forces `quarkus.<deployer>.deploy` and runs a normal production build, which is what the deployer hooks into. */
 private fun deployThroughConfiguration(application: QuarkusApplication, settings: QuarkusSettings) {
     val deploy = settings.deploy
-    val deployer = selectDeployer(settings, application.artifactIds)
+    val deployer = selectDeployer(deploy.deployer, settings.buildProperties, application.artifactIds)
     check(deployer.extension in application.artifactIds) {
         "Deployer '${deployer.id}' needs the ${deployer.extension} extension. " +
             "Add it to the dependencies of the module."
@@ -118,13 +123,22 @@ private fun deployThroughConfiguration(application: QuarkusApplication, settings
     ).use { it.buildProductionApplication() }
 }
 
-private fun selectDeployer(settings: QuarkusSettings, artifactIds: Set<String>): Deployer {
-    val configured = settings.deploy.deployer
+/**
+ * Every other deployer extension depends on `quarkus-kubernetes`, so the classpath alone can never single out
+ * Kubernetes; the deployers that name their own extension are matched first and it stays the fallback.
+ */
+internal fun selectDeployer(
+    configured: String?,
+    buildProperties: Map<String, String>,
+    artifactIds: Set<String>,
+): Deployer {
     if (configured != null) {
         return Deployer.entries.firstOrNull { it.id == configured }
             ?: error("Unknown deployer '$configured'. Choose one of ${Deployer.entries.map { it.id }}.")
     }
-    return Deployer.entries.firstOrNull { settings.buildProperties["quarkus.${it.id}.deploy"] == "true" }
-        ?: Deployer.entries.firstOrNull { it.extension in artifactIds }
+    return Deployer.entries.firstOrNull { buildProperties["quarkus.${it.id}.deploy"] == "true" }
+        ?: Deployer.entries
+            .sortedBy { it.extension == Deployer.KUBERNETES.extension }
+            .firstOrNull { it.extension in artifactIds }
         ?: Deployer.KUBERNETES
 }
