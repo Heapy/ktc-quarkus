@@ -13,6 +13,11 @@ import java.nio.file.Path
 /**
  * What the Maven `info` goal reports, read from the application model rather than from a `QuarkusProject`: the
  * latter needs an `ExtensionManager` that can rewrite the build file, and none exists for `module.yaml`.
+ *
+ * Maven and Gradle split the extensions into the ones the build file declares and the ones those pull in. A plugin
+ * receives one flattened `module.runtimeClasspath` with no record of what the module wrote down, so every entry of
+ * it is registered as a direct dependency and the split here is a different one: what arrived on that classpath
+ * against what the Quarkus model added on top of it as a conditional dependency.
  */
 @TaskAction(executionAvoidance = ExecutionAvoidance.Disabled)
 fun quarkusInfo(
@@ -57,19 +62,19 @@ fun quarkusInfo(
     }
 
     println()
-    println("Extensions:")
+    println("Extensions on the module runtime classpath:")
     model.getDependencies(DependencyFlags.TOP_LEVEL_RUNTIME_EXTENSION_ARTIFACT)
         .map { it.toCompactCoords() }
         .sorted()
         .forEach { println("    $it") }
 
-    val transitive = model.getDependencies(DependencyFlags.RUNTIME_EXTENSION_ARTIFACT)
+    val conditional = model.getDependencies(DependencyFlags.RUNTIME_EXTENSION_ARTIFACT)
         .filterNot { it.flags and DependencyFlags.TOP_LEVEL_RUNTIME_EXTENSION_ARTIFACT != 0 }
         .map { it.toCompactCoords() }
         .sorted()
-    if (transitive.isNotEmpty()) {
+    if (conditional.isNotEmpty()) {
         println()
-        println("Extensions pulled in by other extensions:")
-        transitive.forEach { println("    $it") }
+        println("Extensions the Quarkus model added as conditional dependencies:")
+        conditional.forEach { println("    $it") }
     }
 }

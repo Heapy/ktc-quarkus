@@ -179,6 +179,7 @@ Everything else `@QuarkusTest` needs — the serialized application model and th
 | all-open `quarkus` preset | Covers `javax.enterprise.context.*`, which Quarkus 3 no longer uses, so it opens nothing. Quarkus makes final beans proxyable itself | List the `jakarta` annotations under `allOpen.annotations` |
 | SBOM licence of the application component | Missing. Licences come from a component's POM and the toolchain publishes none for a module | — |
 | A classpath entry that is neither a Maven artifact nor a module JAR | Reported and skipped | — |
+| `quarkusInfo` telling a declared extension from a transitive one | `module.runtimeClasspath` is flattened and keeps no record of what the module declared, so every entry counts as declared. The second list holds what the Quarkus model added on top, not what the first list pulled in | Read `module.yaml` for the declared set |
 | Native build without a container | Needs Docker or Podman by default | `containerBuild: false` and a local GraalVM, see [below](#a-native-binary-for-the-host-platform) |
 | `quarkusRun` and `quarkusDev` on an old JDK | They fork the JVM that runs the toolchain, so a `KOTLIN_CLI_JAVA_HOME` older than `settings.jvm.release` fails | Point `KOTLIN_CLI_JAVA_HOME` at a matching JDK |
 

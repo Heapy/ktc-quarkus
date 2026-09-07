@@ -381,9 +381,12 @@ archives, so a change in one restarts the whole application rather than reloadin
 Five commands that read the model the plugin already resolves. None of them augments, so none needs a bootstrap.
 
 * `quarkusInfo` — the application artifact, the imported platform BOMs, their release info and alignment, and the
-  extensions, split into those the module declares and those other extensions pull in. The Maven goal builds a
-  `QuarkusProject` for this, which needs an `ExtensionManager` able to rewrite the build file; none exists for
-  `module.yaml`, so the same facts are read from `ApplicationModel` and `PlatformImports` instead.
+  extensions. The Maven goal builds a `QuarkusProject` for this, which needs an `ExtensionManager` able to rewrite
+  the build file; none exists for `module.yaml`, so the same facts are read from `ApplicationModel` and
+  `PlatformImports` instead. Maven and Gradle split the extensions into declared and transitive. `module.runtimeClasspath`
+  is flattened and carries no record of what the module declared, so every entry becomes a direct dependency of the
+  workspace module and the split reported here is what came in on that classpath against what the Quarkus model
+  added as a conditional dependency. Telling declared from transitive needs the same KTC request as §4.1.
 * `quarkusDependencyTree` — `DependencyLoggingConfig` on `BootstrapAppModelResolver`, which prints the graph while
   it resolves. Deployment artifacts included, so this is the view `quarkusBuild` works from.
 * `quarkusDependencyList` — the same graph, flattened and sorted.
