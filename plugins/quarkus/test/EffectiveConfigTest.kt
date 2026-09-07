@@ -32,6 +32,33 @@ class EffectiveConfigTest {
     }
 
     @Test
+    fun `a parent profile supplies what the active profile does not`() {
+        val resources = resourceDirectory(
+            "application.properties" to """
+                quarkus.config.profile.parent=base
+                %base.quarkus.prop.overload=from-base
+            """.trimIndent()
+        )
+
+        assertEquals("from-base", config(resources).quarkusValues["quarkus.prop.overload"])
+    }
+
+    @Test
+    fun `application properties can name the profile`() {
+        val resources = resourceDirectory(
+            "application.properties" to """
+                quarkus.profile=staging
+                %staging.quarkus.prop.overload=from-staging
+            """.trimIndent()
+        )
+
+        val effective = config(resources)
+
+        assertEquals("staging", effective.profile)
+        assertEquals("from-staging", effective.quarkusValues["quarkus.prop.overload"])
+    }
+
+    @Test
     fun `yaml wins over properties`() {
         val resources = resourceDirectory(
             "application.properties" to "quarkus.prop.overload=from-properties",

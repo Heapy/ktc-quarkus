@@ -1,6 +1,8 @@
 package io.heapy.ktc.quarkus
 
 import io.quarkus.bootstrap.app.QuarkusBootstrap
+import io.quarkus.runtime.LaunchMode
+import io.quarkus.runtime.configuration.QuarkusConfigBuilderCustomizer
 import io.smallrye.config.DefaultValuesConfigSource
 import io.smallrye.config.Expressions
 import io.smallrye.config.PropertiesConfigSource
@@ -31,6 +33,7 @@ private const val APPLICATION_VERSION = "quarkus.application.version"
 private const val FORCED_ORDINAL = 600
 private const val TASK_PROPERTIES_ORDINAL = 500
 private const val BUILD_PROPERTIES_ORDINAL = 290
+private const val PROFILE_ORDINAL = 100
 private const val PLATFORM_ORDINAL = 0
 
 /**
@@ -112,6 +115,7 @@ internal fun resolveEffectiveConfig(
     applicationVersion: String,
     baseName: String,
     profile: String,
+    launchMode: LaunchMode = LaunchMode.NORMAL,
 ): EffectiveConfig {
     val forced = PropertiesConfigSource(forcedProperties, "forcedProperties", FORCED_ORDINAL)
     val task = PropertiesConfigSource(taskProperties, "taskProperties", TASK_PROPERTIES_ORDINAL)
@@ -126,9 +130,20 @@ internal fun resolveEffectiveConfig(
         PLATFORM_ORDINAL,
     )
     val synthetic = if (platformProperties.isEmpty()) setOf(PLATFORM_PLACEHOLDER) else emptySet()
+    // Naming the profile in a source rather than through withProfile() is what lets SmallRye discover the profile
+    // for itself, and a discovered profile is the only one whose quarkus.config.profile.parent is read. The
+    // ordinal leaves application.properties able to name a profile, as it can under Maven and Gradle.
+    val profileSource = PropertiesConfigSource(
+        mapOf(launchMode.profileKey to profile),
+        "quarkusProfile",
+        PROFILE_ORDINAL,
+    )
 
     val config = SmallRyeConfigBuilder()
         .forClassLoader(resourceClassLoader(resourceDirectories))
+        // Without it quarkus.config.profile.parent and quarkus.config.locations are unknown names here while
+        // augmentation, which builds its config through Quarkus, acts on them.
+        .withCustomizers(QuarkusConfigBuilderCustomizer(launchMode))
         .addDefaultInterceptors()
         .withSources(forced)
         .withSources(task)
@@ -138,15 +153,15 @@ internal fun resolveEffectiveConfig(
         .withSources(YamlConfigSourceLoader.InClassPath())
         .addPropertiesSources()
         .withSources(platform)
+        .withSources(profileSource)
         .withDefaultValues(
             defaultProperties + mapOf(APPLICATION_NAME to applicationName, APPLICATION_VERSION to applicationVersion)
         )
-        .withProfile(profile)
         .build()
 
     return EffectiveConfig(
         config = config,
-        profile = profile,
+        profile = config.getConfigValue(launchMode.profileKey).value ?: profile,
         baseName = baseName,
         propagatedSources = setOf(
             forced.name,
@@ -188,6 +203,7 @@ internal fun settingsConfig(
         applicationVersion = settings.version,
         baseName = settings.finalName ?: moduleName,
         profile = quarkusProfile(settings.buildProperties, mode),
+        launchMode = launchModeOf(mode),
     )
 
 internal fun quarkusProfile(buildProperties: Map<String, String>, mode: QuarkusBootstrap.Mode): String =
@@ -195,6 +211,22 @@ internal fun quarkusProfile(buildProperties: Map<String, String>, mode: QuarkusB
         ?: System.getenv("QUARKUS_PROFILE")
         ?: buildProperties[QUARKUS_PROFILE]
         ?: defaultProfile(mode)
+
+/**
+ * `QuarkusConfigBuilderCustomizer` relocates `smallrye.config.*` onto the `quarkus.*` names, and the profile key it
+ * relocates onto depends on the launch mode.
+ */
+internal fun launchModeOf(mode: QuarkusBootstrap.Mode): LaunchMode = when (mode) {
+    QuarkusBootstrap.Mode.DEV,
+    QuarkusBootstrap.Mode.REMOTE_DEV_SERVER,
+    QuarkusBootstrap.Mode.REMOTE_DEV_CLIENT -> LaunchMode.DEVELOPMENT
+
+    QuarkusBootstrap.Mode.TEST,
+    QuarkusBootstrap.Mode.CONTINUOUS_TEST -> LaunchMode.TEST
+
+    QuarkusBootstrap.Mode.RUN -> LaunchMode.RUN
+    QuarkusBootstrap.Mode.PROD -> LaunchMode.NORMAL
+}
 
 private fun defaultProfile(mode: QuarkusBootstrap.Mode): String = when (mode) {
     QuarkusBootstrap.Mode.DEV,
