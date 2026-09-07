@@ -214,9 +214,16 @@ Done. `EffectiveConfig.kt` layers the same sources at the same ordinals on a `Sm
 `smallrye-config-core` and `smallrye-config-source-yaml`. `addPropertiesSources()` and
 `YamlConfigSourceLoader.InClassPath` read the module's resource directories through a `URLClassLoader` that hides
 `META-INF/services`, exactly as `EffectiveConfig.toUrlClassloader` does. `addDefaultInterceptors()` is required:
-without it `%<profile>.` prefixes and `${...}` expressions are not resolved. The profile follows the bootstrap
-mode (`PROD`/`RUN` -> `prod`, `TEST`/`CONTINUOUS_TEST` -> `test`, the dev modes -> `dev`) unless
-`quarkus.profile` is set as a system property, as `QUARKUS_PROFILE`, or in `buildProperties`.
+without it `%<profile>.` prefixes and `${...}` expressions are not resolved, and `QuarkusConfigBuilderCustomizer`
+is required too: `quarkus.profile`, `quarkus.config.profile.parent` and `quarkus.config.locations` are Quarkus
+relocations of `smallrye.config.*` names that a bare builder does not know.
+
+The profile follows the bootstrap mode (`PROD`/`RUN` -> `prod`, `TEST`/`CONTINUOUS_TEST` -> `test`, the dev modes
+-> `dev`) unless `quarkus.profile` is set as a system property, as `QUARKUS_PROFILE`, in `buildProperties`, or in
+`application.properties`. That value is contributed as a config source at ordinal 100 under the launch mode key
+(`quarkus.test.profile` in test mode, `quarkus.profile` elsewhere), not through `SmallRyeConfigBuilder.withProfile`.
+`withProfile` fills the builder profile list, and SmallRye only discovers a profile - and with it the
+`quarkus.config.profile.parent` chain - while that list is empty.
 
 Notes established while implementing it.
 
@@ -470,7 +477,10 @@ except one environment variable is done by the plugin.
     `OUTPUT_SOURCES_DIR`, and the `buildSystemProperties` of the effective TEST configuration. That last set is
     what the test JVM cannot work out on its own: it reads `application.properties`, `application.yaml` and the
     environment again for itself, but not `buildProperties`, the manifest settings, the platform BOM or the
-    system properties the build JVM was started with;
+    system properties the build JVM was started with. It includes `quarkus.test.profile`, which is the profile key
+    of `LaunchMode.TEST`, so the test JVM runs the profile the serialized model was resolved for. Because a system
+    property can change any of it, the task takes `effective-config.properties` as an `@Input` the way
+    `quarkusBuild` does; without it a `-Dquarkus.*` from one run stays in the resource for the next;
   * `META-INF/services/org.junit.platform.launcher.LauncherSessionListener`;
   * `QuarkusTestListener.class`. The listener is Java, so it does not drag the plugin's Kotlin stdlib into the test
     JVM, and it cannot be a `generated.sources` entry: compiling it needs `junit-platform-launcher` on the module's

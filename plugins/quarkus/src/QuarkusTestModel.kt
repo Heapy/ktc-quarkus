@@ -24,6 +24,9 @@ private const val PROPERTIES_RESOURCE = "META-INF/ktc-quarkus-test.properties"
  * Writes what `@QuarkusTest` needs from the build: the application model, and the system properties that point at it.
  * The toolchain has no way for a plugin to set system properties on the test JVM, so the values travel as a test
  * resource and a `LauncherSessionListener` applies them. See `docs/spec.md` §4.1.
+ *
+ * `effectiveConfig` is declared but not read, as in `quarkusBuild`: the resource carries configuration that a system
+ * property or an environment variable can change, and that file is what makes such a change re-run this task.
  */
 @TaskAction
 fun quarkusTestModel(
@@ -33,6 +36,7 @@ fun quarkusTestModel(
     @Input moduleDir: Path,
     @Output modelDir: Path,
     @Output testResourcesDir: Path,
+    @Input effectiveConfig: Path,
     moduleName: String,
     settings: QuarkusSettings,
 ) {

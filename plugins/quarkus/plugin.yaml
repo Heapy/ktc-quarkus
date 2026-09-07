@@ -155,6 +155,7 @@ tasks:
       moduleDir: ${module.rootDir}
       modelDir: ${taskOutputDir}/model
       testResourcesDir: ${taskOutputDir}/test-resources
+      effectiveConfig: ${tasks.quarkusEffectiveConfig.action.configFile}
       moduleName: ${module.name}
       settings: ${pluginSettings}
 

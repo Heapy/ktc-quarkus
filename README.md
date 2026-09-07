@@ -351,10 +351,12 @@ toolchain runs `quarkusBuild` first. `Ctrl-C` stops the launched process.
 
 `quarkusShowEffectiveConfig` prints the configuration that the build will use, and the sources it came from, in
 descending priority: forced task properties, system properties, environment, `buildProperties`, `application.yaml`,
-`application.properties`, platform properties, defaults. `quarkusEffectiveConfig` writes those values, narrowed by
-`cachingRelevantProperties`, to `effective-config.properties`. `quarkusBuild` and `quarkusNative` take that file as
-an input, which is how a system property or an environment variable reaches the up-to-date check at all. That task
-runs on every invocation and rewrites the file only when the content differs.
+`application.properties`, the profile the plugin derived, platform properties, defaults. The profile sits below
+`application.properties` so a module can name one there, as it can under Maven and Gradle; a system property, an
+environment variable or a `buildProperties` entry still wins. `quarkusEffectiveConfig` writes those values, narrowed
+by `cachingRelevantProperties`, to `effective-config.properties`. `quarkusBuild`, `quarkusNative` and
+`quarkusTestModel` take that file as an input, which is how a system property or an environment variable reaches the
+up-to-date check at all. That task runs on every invocation and rewrites the file only when the content differs.
 
 `quarkusDev` resolves the model in dev mode, builds a command line with `DevModeCommandLineBuilder` and forks a JVM
 that runs `DevModeMain`. The dev-mode process gets its own classpath: `quarkus-core-deployment` and
