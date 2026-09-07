@@ -41,8 +41,8 @@ interface QuarkusSettings {
 
     /**
      * Anchored regular expressions over property names. Their values take part in the up-to-date check of
-     * `quarkusBuild` and `quarkusNative`. A pattern that matches no property is looked up as an environment
-     * variable, so a build can be keyed on one.
+     * `quarkusBuild` and `quarkusNative`. An environment variable is one of those names, so a build can be keyed
+     * on one.
      */
     val cachingRelevantProperties: List<String> get() = listOf("quarkus[.].*", "platform[.]quarkus[.].*")
 

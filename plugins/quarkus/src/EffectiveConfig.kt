@@ -73,18 +73,12 @@ internal class EffectiveConfig(
 
     /**
      * The values that decide whether a cached build is still valid. Patterns are anchored regular expressions over
-     * property names; a pattern that matches nothing is looked up as an environment variable, so a build can be
-     * keyed on one.
+     * property names. An environment variable is one of those names, under both its own spelling and the dotted
+     * lower-case one, so a build can be keyed on it like on any other property.
      */
     fun cachingRelevantValues(patterns: List<String>): Map<String, String> {
         val compiled = patterns.map { Regex("^($it)$") }
-        val values = withoutExpansion { name, _ -> compiled.any { it.matches(name) } }.toSortedMap()
-        for (pattern in patterns) {
-            if (pattern !in values) {
-                System.getenv(pattern)?.let { values[pattern] = it }
-            }
-        }
-        return values
+        return withoutExpansion { name, _ -> compiled.any { it.matches(name) } }
     }
 
     private fun withoutExpansion(keep: (String, String?) -> Boolean): Map<String, String> =

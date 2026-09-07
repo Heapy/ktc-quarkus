@@ -155,12 +155,13 @@ class EffectiveConfigTest {
     }
 
     @Test
-    fun `a pattern that matches no property falls back to an environment variable`() {
-        val variable = System.getenv().keys.first { it.matches(Regex("[A-Za-z_][A-Za-z0-9_]*")) }
+    fun `an environment variable is matched under both of its names`() {
+        val variable = System.getenv().keys.first { it.matches(Regex("[A-Z][A-Z0-9]*(_[A-Z0-9]+)+")) }
+        val dotted = variable.lowercase().replace('_', '.')
+        val effective = config()
 
-        val values = config().cachingRelevantValues(listOf(variable))
-
-        assertEquals(System.getenv(variable), values[variable])
+        assertEquals(System.getenv(variable), effective.cachingRelevantValues(listOf(variable))[variable])
+        assertEquals(System.getenv(variable), effective.cachingRelevantValues(listOf(dotted.replace(".", "[.]")))[dotted])
     }
 
     @Test

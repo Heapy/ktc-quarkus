@@ -200,7 +200,7 @@ Everything below goes under `plugins.quarkus` in `module.yaml`.
 | `manifestSections` | empty | Extra `MANIFEST.MF` attributes, keyed by section name |
 | `ignoredEntries` | empty | Paths kept out of the runner jar. A value in `application.properties` wins |
 | `cleanupBuildOutput` | `true` | Delete the previous output before augmenting, so a changed package type leaves nothing behind |
-| `cachingRelevantProperties` | `quarkus[.].*`, `platform[.]quarkus[.].*` | Anchored regular expressions over property names whose values take part in the up-to-date check of `quarkusBuild` and `quarkusNative`. A pattern that matches no property is looked up as an environment variable |
+| `cachingRelevantProperties` | `quarkus[.].*`, `platform[.]quarkus[.].*` | Anchored regular expressions over property names whose values take part in the up-to-date check of `quarkusBuild` and `quarkusNative`. An environment variable is one of those names, under both its own spelling and the dotted lower-case one |
 | `containerBuild` | `true` | Run `native-image` inside the Mandrel builder container |
 | `run` | see below | Options for `quarkusRun` |
 | `dev` | see below | Options for `quarkusDev` |

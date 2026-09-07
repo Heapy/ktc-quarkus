@@ -304,8 +304,9 @@ Done, as `quarkusEffectiveConfig`. The task carries `ExecutionAvoidance.Disabled
 and `writeIfChanged` rewrites `effective-config.properties` only when the content differs. `quarkusBuild` and
 `quarkusNative` declare that file as an `@Input` without reading it; the toolchain infers the task order from the
 matching path. `settings.cachingRelevantProperties` holds anchored regular expressions over property names,
-defaulting to Gradle's `quarkus[.].*` and `platform[.]quarkus[.].*`; a pattern that matches no property is looked up
-as an environment variable, so a build can be keyed on one.
+defaulting to Gradle's `quarkus[.].*` and `platform[.]quarkus[.].*`. An environment variable is one of those names,
+under both its own spelling and the dotted lower-case one that `EnvConfigSource` also reports, so a build can be
+keyed on one without a separate lookup.
 
 Verified: `KOTLIN_CLI_JAVA_OPTIONS="-Dquarkus.package.jar.type=uber-jar" ./kotlin do quarkusBuild -m app` re-runs
 augmentation, running it a second time with the same value does not, and dropping the property re-runs it again.
