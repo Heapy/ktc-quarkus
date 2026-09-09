@@ -5,7 +5,7 @@ Build, run and package a [Quarkus](https://quarkus.io) application from a
 Maven or Gradle process. The plugin runs Quarkus augmentation itself, so a `jvm/app` module becomes a fast-jar, an
 uber-jar, a native binary, a container image or a live-reload dev session.
 
-* Kotlin Toolchain: `0.12.0`
+* Kotlin Toolchain: `0.12.1`
 * Quarkus: `3.39.2`
 * Verified on macOS aarch64 with JDK 25
 
