@@ -1,5 +1,6 @@
 package io.heapy.ktc.quarkus
 
+import io.quarkus.bootstrap.BootstrapConstants
 import io.quarkus.bootstrap.app.ApplicationModelSerializer
 import io.quarkus.bootstrap.app.QuarkusBootstrap
 import org.jetbrains.amper.plugins.Classpath
@@ -63,6 +64,11 @@ fun quarkusTestModel(
             .forEach { (key, value) -> put(key.toString(), value.toString()) }
         put(SERIALIZED_TEST_APP_MODEL, modelFile.toAbsolutePath().toString())
         put(OUTPUT_SOURCES_DIR, outputSourcesDir(classes, resources))
+        // Quarkus 3.39.4+ accepts the mapping as a system property. Path fragments must use native separators.
+        put(
+            BootstrapConstants.TEST_TO_MAIN_MAPPINGS,
+            "${Path.of("jvmTest", "kotlin-output")}:${Path.of("jvm", "kotlin-output")}",
+        )
     }
 
     writeIfChanged(

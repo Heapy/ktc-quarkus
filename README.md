@@ -6,7 +6,7 @@ Maven or Gradle process. The plugin runs Quarkus augmentation itself, so a `jvm/
 uber-jar, a native binary, a container image or a live-reload dev session.
 
 * Kotlin Toolchain: `0.12.2`
-* Quarkus: `3.39.2`
+* Quarkus: `3.39.4`
 * Verified on macOS aarch64 with JDK 25
 
 ```
@@ -45,7 +45,7 @@ plugins:
 product: jvm/app
 
 dependencies:
-  - bom: io.quarkus.platform:quarkus-bom:3.39.2
+  - bom: io.quarkus.platform:quarkus-bom:3.39.4
   - io.quarkus:quarkus-rest
   - io.quarkus:quarkus-kotlin
 
@@ -110,7 +110,7 @@ as `quarkus-kubernetes`.
 | You configure | Maven (`pom.xml`) | Gradle (`build.gradle`) | Here (`module.yaml`) |
 |---|---|---|---|
 | Extensions | `<dependency>` | `implementation(...)` | `dependencies:` |
-| Platform BOM | `<dependencyManagement>` import | `enforcedPlatform(...)` | `- bom: io.quarkus.platform:quarkus-bom:3.39.2` |
+| Platform BOM | `<dependencyManagement>` import | `enforcedPlatform(...)` | `- bom: io.quarkus.platform:quarkus-bom:3.39.4` |
 | A local module | `<dependency>` on a sibling | `project(":lib")` | `- //lib` |
 | Build-time Quarkus properties | `<properties>` | `quarkus { quarkusBuildProperties }` | `plugins.quarkus.buildProperties` |
 | Runner jar name | `<finalName>` | `quarkus { finalName }` | `plugins.quarkus.finalName` |
@@ -139,25 +139,20 @@ That value also takes part in the up-to-date check, so changing it re-runs augme
 ./kotlin test -m app
 ```
 
-Two things have to be declared by hand, and they are the sharp edge of this plugin. The Quarkus test classloader
+The test dependencies still have to be declared by hand. The Quarkus test classloader
 is built from the application model, the model comes from the module's **main** runtime classpath, and no toolchain
 reference exposes the test classpath. So the test framework belongs in `dependencies`, not `test-dependencies`:
 
 ```yaml
 dependencies:
   - io.quarkus:quarkus-junit                    # not quarkus-junit5
-  - io.quarkus:quarkus-bootstrap-core:3.39.2    # dropped from quarkus-junit's own graph
+  - io.quarkus:quarkus-bootstrap-core:3.39.4    # dropped from quarkus-junit's own graph
   - io.rest-assured:rest-assured
-
-settings:
-  jvm:
-    test:
-      extraEnvironment:
-        TEST_TO_MAIN_MAPPINGS: jvmTest/kotlin-output:jvm/kotlin-output
 ```
 
-Everything else `@QuarkusTest` needs — the serialized application model and the system properties that point at it
-— the plugin supplies on its own.
+The plugin supplies the serialized application model and its system properties, including `TEST_TO_MAIN_MAPPINGS`
+with the host platform's path separators. This requires Quarkus 3.39.4 or newer
+([#56453](https://github.com/quarkusio/quarkus/pull/56453)); no `extraEnvironment` mapping is needed.
 
 ## What does not work yet
 
@@ -169,7 +164,6 @@ Everything else `@QuarkusTest` needs — the serialized application model and th
 | Remote dev mode | Not implemented | — |
 | `./kotlin package` producing the Quarkus artifact | No hook lets a plugin replace a module's packaging output | `./kotlin do quarkusBuild -m app` |
 | Test framework in `test-dependencies` | Fails with `ClassCastException: BuildChainBuilder cannot be cast to BuildChainBuilder` | Put it in `dependencies`, see [Tests](#tests) |
-| `TEST_TO_MAIN_MAPPINGS` | Must be written by hand in every module with a `@QuarkusTest`. `PathTestHelper` reads it from the environment only, and a plugin cannot set one | The `settings.jvm.test.extraEnvironment` block, see [Tests](#tests) |
 | `docker`, `podman`, `buildpack`, `openshift` image builders | Broken. Quarkus locates the project by walking up for a `src/main` directory, which a toolchain module does not have | Use `jib` |
 | Maven dependency exclusions | The toolchain ignores them ([KTC-5843](https://youtrack.jetbrains.com/issue/KTC-5843)) | Declare the affected dependency with an explicit version |
 | Maven relocation POMs | Not followed. `quarkus-junit5` resolves to a 5 KB stub with no transitive dependencies | Name the relocation target, `quarkus-junit` |
