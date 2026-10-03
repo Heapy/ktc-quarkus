@@ -1,7 +1,7 @@
 product: jvm/app
 
 dependencies:
-  - bom: io.quarkus.platform:quarkus-bom:3.39.4
+  - bom: io.quarkus.platform:quarkus-bom:3.40.1
   - io.quarkus:quarkus-rest
   - io.quarkus:quarkus-kotlin
   - io.quarkus:quarkus-container-image-jib
@@ -10,7 +10,7 @@ dependencies:
   # main runtime classpath. Anything it has to load belongs here, not in test-dependencies. See docs/spec.md §4.1.
   - io.quarkus:quarkus-junit
   # Dropped from quarkus-junit's own graph, see docs/spec.md §4.6.
-  - io.quarkus:quarkus-bootstrap-core:3.39.4
+  - io.quarkus:quarkus-bootstrap-core:3.40.1
   - io.rest-assured:rest-assured
 
 settings:
