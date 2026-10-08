@@ -1,4 +1,4 @@
-package io.heapy.ktc.quarkus
+package io.heapy.ktc.plugins.quarkus
 
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit

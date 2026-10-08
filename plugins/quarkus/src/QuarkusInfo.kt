@@ -1,4 +1,4 @@
-package io.heapy.ktc.quarkus
+package io.heapy.ktc.plugins.quarkus
 
 import io.quarkus.maven.dependency.DependencyFlags
 import org.jetbrains.amper.plugins.Classpath

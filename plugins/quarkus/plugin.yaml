@@ -1,6 +1,6 @@
 tasks:
   quarkusBuild:
-    action: !io.heapy.ktc.quarkus.quarkusBuild
+    action: !io.heapy.ktc.plugins.quarkus.quarkusBuild
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -12,7 +12,7 @@ tasks:
       nativeImage: false
 
   quarkusNative:
-    action: !io.heapy.ktc.quarkus.quarkusBuild
+    action: !io.heapy.ktc.plugins.quarkus.quarkusBuild
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -24,7 +24,7 @@ tasks:
       nativeImage: true
 
   quarkusRun:
-    action: !io.heapy.ktc.quarkus.quarkusRun
+    action: !io.heapy.ktc.plugins.quarkus.quarkusRun
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -35,7 +35,7 @@ tasks:
       settings: ${pluginSettings}
 
   quarkusDev:
-    action: !io.heapy.ktc.quarkus.quarkusDev
+    action: !io.heapy.ktc.plugins.quarkus.quarkusDev
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -49,7 +49,7 @@ tasks:
       jvmRelease: ${module.settings.jvm.release}
 
   quarkusImageBuild:
-    action: !io.heapy.ktc.quarkus.quarkusImage
+    action: !io.heapy.ktc.plugins.quarkus.quarkusImage
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -60,7 +60,7 @@ tasks:
       push: false
 
   quarkusImagePush:
-    action: !io.heapy.ktc.quarkus.quarkusImage
+    action: !io.heapy.ktc.plugins.quarkus.quarkusImage
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -71,7 +71,7 @@ tasks:
       push: true
 
   quarkusDeploy:
-    action: !io.heapy.ktc.quarkus.quarkusDeploy
+    action: !io.heapy.ktc.plugins.quarkus.quarkusDeploy
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -81,7 +81,7 @@ tasks:
       settings: ${pluginSettings}
 
   quarkusDependencyTree:
-    action: !io.heapy.ktc.quarkus.quarkusDependencyTree
+    action: !io.heapy.ktc.plugins.quarkus.quarkusDependencyTree
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -91,7 +91,7 @@ tasks:
       settings: ${pluginSettings}
 
   quarkusDependencyList:
-    action: !io.heapy.ktc.quarkus.quarkusDependencyList
+    action: !io.heapy.ktc.plugins.quarkus.quarkusDependencyList
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -101,7 +101,7 @@ tasks:
       settings: ${pluginSettings}
 
   quarkusInfo:
-    action: !io.heapy.ktc.quarkus.quarkusInfo
+    action: !io.heapy.ktc.plugins.quarkus.quarkusInfo
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -111,7 +111,7 @@ tasks:
       settings: ${pluginSettings}
 
   quarkusGoOffline:
-    action: !io.heapy.ktc.quarkus.quarkusGoOffline
+    action: !io.heapy.ktc.plugins.quarkus.quarkusGoOffline
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -121,7 +121,7 @@ tasks:
       settings: ${pluginSettings}
 
   quarkusDependencySbom:
-    action: !io.heapy.ktc.quarkus.quarkusDependencySbom
+    action: !io.heapy.ktc.plugins.quarkus.quarkusDependencySbom
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -131,14 +131,14 @@ tasks:
       settings: ${pluginSettings}
 
   quarkusEffectiveConfig:
-    action: !io.heapy.ktc.quarkus.quarkusEffectiveConfig
+    action: !io.heapy.ktc.plugins.quarkus.quarkusEffectiveConfig
       resources: ${module.resources}
       configFile: ${taskOutputDir}/effective-config.properties
       moduleName: ${module.name}
       settings: ${pluginSettings}
 
   quarkusShowEffectiveConfig:
-    action: !io.heapy.ktc.quarkus.quarkusShowEffectiveConfig
+    action: !io.heapy.ktc.plugins.quarkus.quarkusShowEffectiveConfig
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}
@@ -148,7 +148,7 @@ tasks:
       settings: ${pluginSettings}
 
   quarkusTestModel:
-    action: !io.heapy.ktc.quarkus.quarkusTestModel
+    action: !io.heapy.ktc.plugins.quarkus.quarkusTestModel
       classes: ${module.classes}
       resources: ${module.resources}
       runtimeClasspath: ${module.runtimeClasspath}

@@ -1,4 +1,4 @@
-package io.heapy.ktc.quarkus.test;
+package io.heapy.ktc.plugins.quarkus.test;
 
 import java.io.IOException;
 import java.io.InputStream;

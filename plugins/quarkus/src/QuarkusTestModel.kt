@@ -1,4 +1,4 @@
-package io.heapy.ktc.quarkus
+package io.heapy.ktc.plugins.quarkus
 
 import io.quarkus.bootstrap.BootstrapConstants
 import io.quarkus.bootstrap.app.ApplicationModelSerializer
@@ -18,7 +18,7 @@ private const val OUTPUT_SOURCES_DIR = "OUTPUT_SOURCES_DIR"
 private const val SERVICES_RESOURCE = "META-INF/services/org.junit.platform.launcher.LauncherSessionListener"
 
 /** Named, not referenced: the listener implements a compile-only interface that the plugin JVM does not have. */
-private const val LISTENER_CLASS = "io.heapy.ktc.quarkus.test.QuarkusTestListener"
+private const val LISTENER_CLASS = "io.heapy.ktc.plugins.quarkus.test.QuarkusTestListener"
 private const val PROPERTIES_RESOURCE = "META-INF/ktc-quarkus-test.properties"
 
 /**

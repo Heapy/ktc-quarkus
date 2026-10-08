@@ -1,4 +1,4 @@
-package io.heapy.ktc.quarkus
+package io.heapy.ktc.plugins.quarkus
 
 import io.quarkus.bootstrap.app.QuarkusBootstrap
 import io.quarkus.runtime.LaunchMode

@@ -1,4 +1,4 @@
-package io.heapy.ktc.quarkus
+package io.heapy.ktc.plugins.quarkus
 
 private const val MANIFEST_ATTRIBUTES = "quarkus.package.jar.manifest.attributes"
 private const val MANIFEST_SECTIONS = "quarkus.package.jar.manifest.sections"
